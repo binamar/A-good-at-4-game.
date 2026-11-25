@@ -532,12 +532,13 @@ func _try_fire() -> void:
 		tpp_q.collide_with_areas = true
 		tpp_q.collide_with_bodies = true
 		tpp_q.exclude = _exclude_rids
-		var tpp_hit := get_world_3d().direct_space_state.intersect_ray(tpp_q)
-		var converge_pt := tpp_hit["position"] if not tpp_hit.is_empty() else tpp_to
-		var dir_to_pt := (converge_pt - ray_origin).normalized()
+		var tpp_hit: Dictionary = get_world_3d().direct_space_state.intersect_ray(tpp_q)
+		var converge_pt: Vector3 = tpp_to
+		if not tpp_hit.is_empty():
+			converge_pt = tpp_hit["position"]
+		var dir_to_pt: Vector3 = (converge_pt - ray_origin).normalized()
 		if dir_to_pt.length_squared() > 0.01:
-			var base_dir := dir_to_pt
-			var ray_dir_tpp := (base_dir + _tpp_camera.global_transform.basis.x * randf_range(-spread, spread) + _tpp_camera.global_transform.basis.y * randf_range(-spread, spread)).normalized()
+			var ray_dir_tpp: Vector3 = (dir_to_pt + _tpp_camera.global_transform.basis.x * randf_range(-spread, spread) + _tpp_camera.global_transform.basis.y * randf_range(-spread, spread)).normalized()
 			_execute_bullet_ray(ray_origin, ray_dir_tpp, stats)
 			return
 
@@ -573,7 +574,7 @@ func _execute_bullet_ray(ray_origin: Vector3, ray_dir: Vector3, stats: Dictionar
 			arena.spawn_impact(hit["position"], hit["normal"], false)
 
 	if not stats["is_melee"] and arena and arena.has_method("spawn_tracer"):
-		var muzzle_pos := viewmodel.get_muzzle_world_pos() if pov_mode == PovMode.FIRST_PERSON else _body_muzzle.global_position
+		var muzzle_pos: Vector3 = viewmodel.get_muzzle_world_pos() if pov_mode == PovMode.FIRST_PERSON else _body_muzzle.global_position
 		arena.spawn_tracer(muzzle_pos, visual_end)
 
 	_spray_shots += 1

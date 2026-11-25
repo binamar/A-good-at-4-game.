@@ -70,7 +70,7 @@ func setup_round_entities() -> void:
 	hud.refresh_alive_counts(get_alive_counts())
 
 func _process(_delta: float) -> void:
-	if not player.is_alive and not spectator_cam.current:
+	if player != null and is_instance_valid(player) and player.get("is_alive") == false and not spectator_cam.current:
 		spectator_cam.current = true
 	var counts := get_alive_counts()
 	var ct_c: int = counts.get(GameManager.Team.CT, 0)
@@ -81,10 +81,12 @@ func _process(_delta: float) -> void:
 		hud.refresh_alive_counts(counts)
 
 func give_player_weapon(weapon_id: int) -> void:
-	player.give_weapon(weapon_id)
+	if player != null and player.has_method("give_weapon"):
+		player.give_weapon(weapon_id)
 
 func apply_player_armor() -> void:
-	player.apply_armor()
+	if player != null and player.has_method("apply_armor"):
+		player.apply_armor()
 
 func spawn_planted_bomb(pos: Vector3) -> void:
 	arena.set_bomb_visual(true, pos)
@@ -92,6 +94,8 @@ func spawn_planted_bomb(pos: Vector3) -> void:
 func get_alive_counts() -> Dictionary:
 	var counts := {GameManager.Team.CT: 0, GameManager.Team.T: 0}
 	for ag in all_agents:
-		if is_instance_valid(ag) and ag.is_alive:
-			counts[ag.team] = counts.get(ag.team, 0) + 1
+		if is_instance_valid(ag) and ag.get("is_alive") == true:
+			var t_id = ag.get("team")
+			if t_id != null:
+				counts[t_id] = counts.get(t_id, 0) + 1
 	return counts

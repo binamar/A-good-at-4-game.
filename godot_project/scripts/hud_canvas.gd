@@ -16,7 +16,7 @@ func _draw() -> void:
 
 	# Dynamic Crosshair
 	var gap := 10.0
-	if hud._player != null and hud._player.is_alive:
+	if hud._player != null and is_instance_valid(hud._player) and hud._player.get("is_alive") == true and hud._player.has_method("get_current_spread_px"):
 		gap = hud._player.get_current_spread_px()
 	var line_len := 9.0
 	var ch_col := Color(0.25, 0.98, 0.55, 0.94)
@@ -59,9 +59,9 @@ func _draw() -> void:
 		draw_circle(bp, 4.5, Color(1.0, 0.2, 0.2))
 
 	# Agents on radar (Player + Teammates + Firing Enemies)
-	if hud._player != null:
+	if hud._player != null and is_instance_valid(hud._player) and hud._player.get("team") != null:
 		for ag in hud._agents:
-			if not is_instance_valid(ag) or not ag.is_alive:
+			if not is_instance_valid(ag) or ag.get("is_alive") != true:
 				continue
 			var is_ally: bool = (ag.team == hud._player.team)
 			var is_pinged: bool = (not is_ally and ag.get("radar_ping_timer") != null and ag.radar_ping_timer > 0.0)

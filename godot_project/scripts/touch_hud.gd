@@ -78,6 +78,8 @@ func bind_player(p: CharacterBody3D, arena_ref: Node, all_agents: Array) -> void
 	_player = p
 	_arena = arena_ref
 	_agents = all_agents
+	if _player == null or not is_instance_valid(_player) or not _player.has_signal("health_changed"):
+		return
 	_player.health_changed.connect(_on_health_changed)
 	_player.weapon_changed.connect(_on_weapon_changed)
 	_player.hitmarker_triggered.connect(_on_hitmarker)
@@ -661,9 +663,9 @@ func _input(event: InputEvent) -> void:
 				_fire_finger = event.index
 				_player.set_fire_pressed(true)
 				return
-			var btns := [_ads_btn, _jump_btn, _crouch_btn, _reload_btn, _swap_btn, _pov_btn, _buy_btn, _pause_btn, _score_btn, _slot1_btn, _slot2_btn, _slot3_btn, _slot4_btn, _action_btn]
+			var btns: Array = [_ads_btn, _jump_btn, _crouch_btn, _reload_btn, _swap_btn, _pov_btn, _buy_btn, _pause_btn, _score_btn, _slot1_btn, _slot2_btn, _slot3_btn, _slot4_btn, _action_btn]
 			for btn in btns:
-				if btn.visible and btn.get_global_rect().has_point(pos):
+				if btn != null and btn.visible and btn.get_global_rect().has_point(pos):
 					return
 			var vp_w := _hud_root.get_viewport_rect().size.x
 			if pos.x < vp_w * 0.45 and _joy_finger == -1:
@@ -708,7 +710,7 @@ func _process(delta: float) -> void:
 	_buy_btn.visible = GameManager.can_buy()
 	if not GameManager.can_buy() and _buy_panel.visible:
 		_buy_panel.visible = false
-	if _player != null:
+	if _player != null and is_instance_valid(_player) and _player.has_method("has_slot"):
 		_slot1_btn.visible = _player.has_slot(1)
 		_slot4_btn.visible = _player.has_slot(4)
 	_draw_layer.queue_redraw()

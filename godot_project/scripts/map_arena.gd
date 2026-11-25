@@ -420,7 +420,7 @@ func _setup_navmesh() -> void:
 	nav.geometry_parsed_geometry_type = NavigationMesh.PARSED_GEOMETRY_STATIC_COLLIDERS
 	nav.geometry_collision_mask = 1
 	navigation_mesh = nav
-	bake_navigation_mesh(false)
+	bake_navigation_mesh(true)
 
 func _setup_fx_pools() -> void:
 	var mat := StandardMaterial3D.new()
