@@ -18,14 +18,11 @@ sky_material = SubResource("SkyMat_day")
 background_mode = 2
 sky = SubResource("Sky_main")
 ambient_light_source = 2
-ambient_light_color = Color(0.48, 0.55, 0.72, 1)
-ambient_light_energy = 0.44
+ambient_light_color = Color(0.50, 0.56, 0.72, 1)
+ambient_light_energy = 0.46
 tonemap_mode = 2
 tonemap_exposure = 1.06
-fog_enabled = true
-fog_light_color = Color(0.76, 0.72, 0.70, 1)
-fog_density = 0.0038
-fog_sky_affect = 0.25
+fog_enabled = false
 
 [node name="Match" type="Node3D"]
 script = ExtResource("1_ctrl")
@@ -36,13 +33,12 @@ environment = SubResource("Env_mobile")
 [node name="DirectionalLight3D" type="DirectionalLight3D" parent="."]
 transform = Transform3D(0.78, -0.45, 0.43, 0, 0.694658, 0.71934, -0.625, -0.561, 0.542, 0, 30, 0)
 light_color = Color(1, 0.90, 0.74, 1)
-light_energy = 1.65
+light_energy = 1.62
 shadow_enabled = true
-shadow_bias = 0.025
-shadow_blur = 1.2
-directional_shadow_mode = 1
-directional_shadow_fade_start = 0.85
-directional_shadow_max_distance = 64.0
+shadow_bias = 0.03
+shadow_blur = 0.0
+directional_shadow_mode = 0
+directional_shadow_max_distance = 52.0
 
 [node name="SandstoneArena" type="NavigationRegion3D" parent="."]
 script = ExtResource("2_map")

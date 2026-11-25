@@ -5,6 +5,13 @@ signal weapon_changed(weapon_name: String, mag: int, reserve: int, slot: int, is
 signal hitmarker_triggered(is_headshot: bool, killed: bool, dmg: int)
 signal damage_taken_triggered()
 signal action_prompt_changed(visible: bool, label: String, progress: float)
+signal pov_changed(pov_mode: int)
+
+enum PovMode {
+	FIRST_PERSON = 0,
+	SECOND_PERSON = 1,
+	THIRD_PERSON = 2,
+}
 
 const GRAVITY := 20.0
 const JUMP_SPEED := 6.7
@@ -27,6 +34,7 @@ var agent_name: String = "You"
 var is_alive: bool = true
 var hp: int = 100
 var armor: int = 0
+var pov_mode: int = PovMode.FIRST_PERSON
 
 var move_input: Vector2 = Vector2.ZERO
 var is_crouching: bool = false
@@ -43,12 +51,29 @@ var _spray_shots: int = 0
 var _fire_cooldown: float = 0.0
 var _reload_timer: float = 0.0
 var _action_progress: float = 0.0
+var _walk_phase: float = 0.0
 
 var _current_slot: int = 2
 var _weapons: Dictionary = {} # slot -> {id, mag, reserve}
 var _exclude_rids: Array[RID] = []
+var _agents_ref: Array = []
 
 var arena: Node = null
+
+# 3rd-person & 2nd-person camera rigs + sculpted player body
+var _tpp_spring: SpringArm3D
+var _tpp_camera: Camera3D
+var _second_cam: Camera3D
+
+var _body_visual: Node3D
+var _body_torso: Node3D
+var _body_head: Node3D
+var _body_left_leg: Node3D
+var _body_right_leg: Node3D
+var _body_muzzle: Marker3D
+var _p_armor_mat: StandardMaterial3D
+var _p_gear_mat: StandardMaterial3D
+var _p_visor_mat: StandardMaterial3D
 
 func _ready() -> void:
 	team = GameManager.Team.CT
@@ -60,9 +85,170 @@ func _ready() -> void:
 	_exclude_rids.append(get_rid())
 	_exclude_rids.append(hitbox_body.get_rid())
 	_exclude_rids.append(hitbox_head.get_rid())
+	_setup_pov_cameras_and_body()
+	_apply_pov_mode()
 
-func reset_for_round(spawn_pos: Vector3, look_yaw: float, p_team: int, arena_ref: Node) -> void:
+func _load_mesh(path: String) -> Mesh:
+	var m := ResourceLoader.load(path) as Mesh
+	if m != null:
+		return m
+	var fb := CapsuleMesh.new()
+	fb.radius = 0.12
+	fb.height = 0.4
+	return fb
+
+func _add_body_mesh(parent: Node3D, path: String, pos: Vector3, mat: Material, rot_deg: Vector3 = Vector3.ZERO) -> MeshInstance3D:
+	var mi := MeshInstance3D.new()
+	mi.mesh = _load_mesh(path)
+	mi.position = pos
+	mi.rotation_degrees = rot_deg
+	mi.material_override = mat
+	mi.cast_shadow = GeometryInstance3D.SHADOW_CASTING_SETTING_OFF
+	parent.add_child(mi)
+	return mi
+
+func _setup_pov_cameras_and_body() -> void:
+	# 3rd-person SpringArm + Over-the-Shoulder Camera
+	_tpp_spring = SpringArm3D.new()
+	_tpp_spring.position = Vector3(0.56, 0.22, 0.0)
+	_tpp_spring.spring_length = 2.75
+	_tpp_spring.margin = 0.25
+	_tpp_spring.collision_mask = 1
+	head.add_child(_tpp_spring)
+
+	_tpp_camera = Camera3D.new()
+	_tpp_camera.fov = 78.0
+	_tpp_camera.near = 0.05
+	_tpp_camera.far = 180.0
+	_tpp_spring.add_child(_tpp_camera)
+
+	# 2nd-person Camera (views player from nearest enemy's / teammate's eyes)
+	_second_cam = Camera3D.new()
+	_second_cam.top_level = true
+	_second_cam.fov = 76.0
+	_second_cam.near = 0.05
+	_second_cam.far = 180.0
+	add_child(_second_cam)
+
+	# Sculpted 3D Player Character Body (visible in 2nd & 3rd person)
+	_p_armor_mat = StandardMaterial3D.new()
+	_p_armor_mat.albedo_color = Color(0.18, 0.42, 0.78)
+	_p_armor_mat.roughness = 0.72
+	_p_armor_mat.specular_mode = BaseMaterial3D.SPECULAR_DISABLED
+
+	_p_gear_mat = StandardMaterial3D.new()
+	_p_gear_mat.albedo_color = Color(0.16, 0.20, 0.28)
+	_p_gear_mat.roughness = 0.80
+	_p_gear_mat.specular_mode = BaseMaterial3D.SPECULAR_DISABLED
+
+	_p_visor_mat = StandardMaterial3D.new()
+	_p_visor_mat.shading_mode = BaseMaterial3D.SHADING_MODE_UNSHADED
+	_p_visor_mat.albedo_color = Color(0.25, 0.90, 1.0)
+
+	var skin_mat := StandardMaterial3D.new()
+	skin_mat.albedo_color = Color(0.86, 0.68, 0.54)
+	skin_mat.roughness = 0.82
+	skin_mat.specular_mode = BaseMaterial3D.SPECULAR_DISABLED
+
+	var gun_mat := StandardMaterial3D.new()
+	gun_mat.albedo_color = Color(0.14, 0.16, 0.20)
+	gun_mat.roughness = 0.40
+
+	_body_visual = Node3D.new()
+	add_child(_body_visual)
+
+	_body_torso = Node3D.new()
+	_body_torso.position = Vector3(0.0, 0.78, 0.0)
+	_body_visual.add_child(_body_torso)
+	_add_body_mesh(_body_torso, "res://assets/models/op_torso_assault.obj", Vector3.ZERO, _p_armor_mat)
+
+	_body_head = Node3D.new()
+	_body_head.position = Vector3(0.0, 0.62, 0.0)
+	_body_torso.add_child(_body_head)
+	_add_body_mesh(_body_head, "res://assets/models/op_head_sculpted.obj", Vector3.ZERO, skin_mat)
+	_add_body_mesh(_body_head, "res://assets/models/op_helmet_assault.obj", Vector3.ZERO, _p_gear_mat)
+	_add_body_mesh(_body_head, "res://assets/models/op_visor_curved.obj", Vector3.ZERO, _p_visor_mat)
+
+	_add_body_mesh(_body_torso, "res://assets/models/op_limb_arm.obj", Vector3(-0.26, 0.48, 0.0), _p_gear_mat, Vector3(0.0, -24.0, 0.0))
+	var right_arm := Node3D.new()
+	right_arm.position = Vector3(0.26, 0.48, 0.0)
+	_body_torso.add_child(right_arm)
+	_add_body_mesh(right_arm, "res://assets/models/op_limb_arm.obj", Vector3.ZERO, _p_gear_mat, Vector3(0.0, 10.0, 0.0))
+	_add_body_mesh(right_arm, "res://assets/models/op_rifle_world.obj", Vector3(-0.07, -0.18, -0.34), gun_mat)
+
+	_body_muzzle = Marker3D.new()
+	_body_muzzle.position = Vector3(-0.07, -0.16, -0.84)
+	right_arm.add_child(_body_muzzle)
+
+	_body_left_leg = Node3D.new()
+	_body_left_leg.position = Vector3(-0.13, 0.78, 0.0)
+	_body_visual.add_child(_body_left_leg)
+	_add_body_mesh(_body_left_leg, "res://assets/models/op_limb_leg.obj", Vector3.ZERO, _p_gear_mat)
+
+	_body_right_leg = Node3D.new()
+	_body_right_leg.position = Vector3(0.13, 0.78, 0.0)
+	_body_visual.add_child(_body_right_leg)
+	_add_body_mesh(_body_right_leg, "res://assets/models/op_limb_leg.obj", Vector3.ZERO, _p_gear_mat)
+
+func cycle_pov() -> void:
+	pov_mode = (pov_mode + 1) % 3
+	_apply_pov_mode()
+	pov_changed.emit(pov_mode)
+
+func _apply_pov_mode() -> void:
+	if camera == null or _tpp_camera == null or _second_cam == null:
+		return
+	if not is_alive:
+		return
+	match pov_mode:
+		PovMode.FIRST_PERSON:
+			_body_visual.visible = false
+			viewmodel.visible = true
+			camera.current = true
+		PovMode.SECOND_PERSON:
+			_body_visual.visible = true
+			viewmodel.visible = false
+			_update_second_person_camera()
+			_second_cam.current = true
+		PovMode.THIRD_PERSON:
+			_body_visual.visible = true
+			viewmodel.visible = false
+			_tpp_camera.current = true
+
+func _update_second_person_camera() -> void:
+	var best_observer: Node3D = null
+	var best_dist := 99999.0
+	# Prefer nearest living enemy watching the player; fallback to nearest living teammate
+	for pass_idx in 2:
+		for ag in _agents_ref:
+			if not is_instance_valid(ag) or ag == self or not ag.is_alive:
+				continue
+			if pass_idx == 0 and ag.team == team:
+				continue
+			var d := global_position.distance_squared_to(ag.global_position)
+			if d < best_dist:
+				best_dist = d
+				best_observer = ag
+		if best_observer != null:
+			break
+
+	var look_target := global_position + Vector3(0.0, 1.28, 0.0)
+	if best_observer != null:
+		var obs_eye := best_observer.global_position + Vector3(0.0, 1.62, 0.0)
+		var to_player := (look_target - obs_eye).normalized()
+		if to_player.length_squared() < 0.001:
+			to_player = -global_transform.basis.z
+		_second_cam.global_position = obs_eye + to_player * 0.42
+	else:
+		_second_cam.global_position = global_position + Vector3(0.0, 2.2, 3.2)
+
+	if _second_cam.global_position.distance_squared_to(look_target) > 0.05:
+		var up_vec := Vector3.UP if absf((look_target - _second_cam.global_position).normalized().dot(Vector3.UP)) < 0.98 else Vector3.RIGHT
+		_second_cam.look_at(look_target, up_vec)
+
+func reset_for_round(spawn_pos: Vector3, look_yaw: float, p_team: int, arena_ref: Node, all_agents: Array = []) -> void:
 	arena = arena_ref
+	_agents_ref = all_agents
 	team = p_team
 	is_alive = true
 	hp = 100
@@ -78,6 +264,7 @@ func reset_for_round(spawn_pos: Vector3, look_yaw: float, p_team: int, arena_ref
 	_fire_cooldown = 0.0
 	_reload_timer = 0.0
 	_action_progress = 0.0
+	_walk_phase = 0.0
 	is_crouching = false
 	is_ads = false
 	is_firing_held = false
@@ -87,7 +274,18 @@ func reset_for_round(spawn_pos: Vector3, look_yaw: float, p_team: int, arena_ref
 	hitbox_body.set_deferred("monitorable", true)
 	hitbox_head.set_deferred("monitoring", true)
 	hitbox_head.set_deferred("monitorable", true)
-	camera.current = true
+
+	if team == GameManager.Team.CT:
+		_p_armor_mat.albedo_color = Color(0.18, 0.42, 0.78)
+		_p_gear_mat.albedo_color = Color(0.14, 0.18, 0.26)
+		_p_visor_mat.albedo_color = Color(0.25, 0.90, 1.0)
+	else:
+		_p_armor_mat.albedo_color = Color(0.76, 0.42, 0.18)
+		_p_gear_mat.albedo_color = Color(0.24, 0.18, 0.15)
+		_p_visor_mat.albedo_color = Color(1.0, 0.44, 0.16)
+
+	_apply_pov_mode()
+	pov_changed.emit(pov_mode)
 
 	_weapons.clear()
 	_weapons[3] = {"id": WeaponData.WeaponId.KNIFE, "mag": 0, "reserve": 0}
@@ -224,8 +422,9 @@ func _physics_process(delta: float) -> void:
 		col_shape.height = lerpf(col_shape.height, target_h, clampf(delta * 12.0, 0.0, 1.0))
 		body_collider.position.y = col_shape.height * 0.5
 
-	var target_fov: float = stats["ads_fov"] if is_ads else 75.0
+	var target_fov: float = stats["ads_fov"] if is_ads else (78.0 if pov_mode == PovMode.THIRD_PERSON else 75.0)
 	camera.fov = lerpf(camera.fov, target_fov, clampf(delta * 14.0, 0.0, 1.0))
+	_tpp_camera.fov = camera.fov
 
 	rotation.y = _yaw + _recoil_yaw_offset
 	head.rotation.x = clampf(_pitch + _recoil_pitch_offset, deg_to_rad(-85.0), deg_to_rad(85.0))
@@ -253,9 +452,25 @@ func _physics_process(delta: float) -> void:
 	move_and_slide()
 
 	var h_speed := Vector2(velocity.x, velocity.z).length()
-	viewmodel.update_motion(delta, clampf(h_speed / 6.0, 0.0, 1.0), is_on_floor())
+	if pov_mode == PovMode.FIRST_PERSON:
+		viewmodel.update_motion(delta, clampf(h_speed / 6.0, 0.0, 1.0), is_on_floor())
+	else:
+		_animate_body_visual(delta, h_speed)
+		if pov_mode == PovMode.SECOND_PERSON:
+			_update_second_person_camera()
 
 	_handle_bomb_interaction(delta)
+
+func _animate_body_visual(delta: float, h_speed: float) -> void:
+	_body_torso.position.y = lerpf(_body_torso.position.y, 0.62 if is_crouching else 0.78, clampf(delta * 10.0, 0.0, 1.0))
+	_body_head.rotation.x = clampf(_pitch * 0.65, -0.55, 0.55)
+	if h_speed > 0.3:
+		_walk_phase += delta * h_speed * 2.5
+		_body_left_leg.rotation.x = sin(_walk_phase) * 0.52
+		_body_right_leg.rotation.x = -sin(_walk_phase) * 0.52
+	else:
+		_body_left_leg.rotation.x = lerpf(_body_left_leg.rotation.x, 0.0, clampf(delta * 10.0, 0.0, 1.0))
+		_body_right_leg.rotation.x = lerpf(_body_right_leg.rotation.x, 0.0, clampf(delta * 10.0, 0.0, 1.0))
 
 func _try_fire() -> void:
 	if not is_alive or GameManager.is_movement_frozen() or _fire_cooldown > 0.0 or _reload_timer > 0.0:
@@ -267,9 +482,9 @@ func _try_fire() -> void:
 		_fire_cooldown = stats["fire_rate"]
 		viewmodel.trigger_fire()
 		AudioManager.play_sfx("throw", -4.0, 0.05)
-		var cam_dir := -camera.global_transform.basis.z
+		var throw_dir := -head.global_transform.basis.z
 		if arena != null and arena.has_method("throw_grenade"):
-			arena.throw_grenade(camera.global_position + cam_dir * 0.7, cam_dir, agent_name, team)
+			arena.throw_grenade(head.global_position + throw_dir * 0.7, throw_dir, agent_name, team)
 		GameManager.player_has_grenade = false
 		_weapons.erase(4)
 		equip_slot(1 if _weapons.has(1) else 2)
@@ -307,14 +522,34 @@ func _try_fire() -> void:
 		spread += 0.045
 	spread += minf(0.035, float(_spray_shots) * 0.0025)
 
-	var cam_origin := camera.global_position
-	var cam_forward := -camera.global_transform.basis.z
-	var cam_right := camera.global_transform.basis.x
-	var cam_up := camera.global_transform.basis.y
-	var ray_dir := (cam_forward + cam_right * randf_range(-spread, spread) + cam_up * randf_range(-spread, spread)).normalized()
-	var ray_end := cam_origin + ray_dir * float(stats["range"])
+	# Aim raycast: in 3rd-person, converge crosshair hit from TPP camera toward head ray origin
+	var ray_origin := head.global_position
+	var aim_basis := head.global_transform.basis
+	if pov_mode == PovMode.THIRD_PERSON:
+		var tpp_from := _tpp_camera.global_position
+		var tpp_to := tpp_from + (-_tpp_camera.global_transform.basis.z) * float(stats["range"])
+		var tpp_q := PhysicsRayQueryParameters3D.create(tpp_from, tpp_to, 1 | 4 | 8)
+		tpp_q.collide_with_areas = true
+		tpp_q.collide_with_bodies = true
+		tpp_q.exclude = _exclude_rids
+		var tpp_hit := get_world_3d().direct_space_state.intersect_ray(tpp_q)
+		var converge_pt := tpp_hit["position"] if not tpp_hit.is_empty() else tpp_to
+		var dir_to_pt := (converge_pt - ray_origin).normalized()
+		if dir_to_pt.length_squared() > 0.01:
+			var base_dir := dir_to_pt
+			var ray_dir_tpp := (base_dir + _tpp_camera.global_transform.basis.x * randf_range(-spread, spread) + _tpp_camera.global_transform.basis.y * randf_range(-spread, spread)).normalized()
+			_execute_bullet_ray(ray_origin, ray_dir_tpp, stats)
+			return
 
-	var query := PhysicsRayQueryParameters3D.create(cam_origin, ray_end, 1 | 4 | 8)
+	var cam_forward := -aim_basis.z
+	var cam_right := aim_basis.x
+	var cam_up := aim_basis.y
+	var ray_dir := (cam_forward + cam_right * randf_range(-spread, spread) + cam_up * randf_range(-spread, spread)).normalized()
+	_execute_bullet_ray(ray_origin, ray_dir, stats)
+
+func _execute_bullet_ray(ray_origin: Vector3, ray_dir: Vector3, stats: Dictionary) -> void:
+	var ray_end := ray_origin + ray_dir * float(stats["range"])
+	var query := PhysicsRayQueryParameters3D.create(ray_origin, ray_end, 1 | 4 | 8)
 	query.collide_with_areas = true
 	query.collide_with_bodies = true
 	query.exclude = _exclude_rids
@@ -338,7 +573,8 @@ func _try_fire() -> void:
 			arena.spawn_impact(hit["position"], hit["normal"], false)
 
 	if not stats["is_melee"] and arena and arena.has_method("spawn_tracer"):
-		arena.spawn_tracer(viewmodel.get_muzzle_world_pos(), visual_end)
+		var muzzle_pos := viewmodel.get_muzzle_world_pos() if pov_mode == PovMode.FIRST_PERSON else _body_muzzle.global_position
+		arena.spawn_tracer(muzzle_pos, visual_end)
 
 	_spray_shots += 1
 	_recoil_pitch_offset = clampf(_recoil_pitch_offset + deg_to_rad(stats["recoil_pitch"]), 0.0, deg_to_rad(14.0))

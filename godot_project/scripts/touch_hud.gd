@@ -47,6 +47,7 @@ var _slot1_btn: Button
 var _slot2_btn: Button
 var _slot3_btn: Button
 var _slot4_btn: Button
+var _pov_btn: Button
 var _action_btn: Button
 var _action_bar: ProgressBar
 
@@ -58,6 +59,7 @@ var _score_text: Label
 var _match_over_panel: PanelContainer
 var _match_over_lbl: Label
 var _sens_lbl: Label
+var _quality_btn: Button
 
 var _hitmarker_timer: float = 0.0
 var _hitmarker_head: bool = false
@@ -81,6 +83,8 @@ func bind_player(p: CharacterBody3D, arena_ref: Node, all_agents: Array) -> void
 	_player.hitmarker_triggered.connect(_on_hitmarker)
 	_player.damage_taken_triggered.connect(_on_damage_taken)
 	_player.action_prompt_changed.connect(_on_action_prompt)
+	_player.pov_changed.connect(_on_pov_changed)
+	_on_pov_changed(_player.pov_mode)
 
 func _build_hud() -> void:
 	_hud_root = Control.new()
@@ -262,6 +266,10 @@ func _build_hud() -> void:
 	_swap_btn.pressed.connect(_on_swap_pressed)
 	_hud_root.add_child(_swap_btn)
 
+	_pov_btn = _make_anchored_br_btn("1ST POV", Vector2(-340, -190), Vector2(82, 56))
+	_pov_btn.pressed.connect(_on_pov_pressed)
+	_hud_root.add_child(_pov_btn)
+
 	# Contextual Plant / Defuse Hold Button
 	_action_btn = Button.new()
 	_action_btn.anchor_left = 0.5
@@ -441,6 +449,12 @@ func _build_pause_panel() -> void:
 	slider.value_changed.connect(_on_sens_changed)
 	vbox.add_child(slider)
 
+	_quality_btn = Button.new()
+	_quality_btn.custom_minimum_size = Vector2(0, 42)
+	_quality_btn.pressed.connect(_on_quality_pressed)
+	_refresh_quality_btn()
+	vbox.add_child(_quality_btn)
+
 	var resume_b := Button.new()
 	resume_b.text = "RESUME MATCH"
 	resume_b.custom_minimum_size = Vector2(0, 44)
@@ -524,6 +538,16 @@ func _on_swap_pressed() -> void:
 	if _player != null:
 		_player.cycle_weapon()
 
+func _on_pov_pressed() -> void:
+	if _player != null:
+		_player.cycle_pov()
+
+func _on_pov_changed(mode: int) -> void:
+	if _pov_btn == null:
+		return
+	var labels := ["1ST POV", "2ND POV", "3RD POV"]
+	_pov_btn.text = labels[clampi(mode, 0, 2)]
+
 func _on_action_down() -> void:
 	if _player != null:
 		_player.is_action_held = true
@@ -563,6 +587,16 @@ func _on_sens_changed(v: float) -> void:
 	GameManager.touch_sensitivity = v
 	if _sens_lbl != null:
 		_sens_lbl.text = "Touch Look Sensitivity: %.2f" % v
+
+func _on_quality_pressed() -> void:
+	GameManager.apply_graphics_quality((GameManager.graphics_quality + 1) % 3)
+	_refresh_quality_btn()
+
+func _refresh_quality_btn() -> void:
+	if _quality_btn == null:
+		return
+	var names := ["Graphics: COOL (540p / 45 FPS)", "Graphics: BALANCED (720p / 60 FPS)", "Graphics: SHARP (900p / 60 FPS)"]
+	_quality_btn.text = names[GameManager.graphics_quality]
 
 func _on_resume_pressed() -> void:
 	_pause_panel.visible = false
@@ -627,7 +661,7 @@ func _input(event: InputEvent) -> void:
 				_fire_finger = event.index
 				_player.set_fire_pressed(true)
 				return
-			var btns := [_ads_btn, _jump_btn, _crouch_btn, _reload_btn, _swap_btn, _buy_btn, _pause_btn, _score_btn, _slot1_btn, _slot2_btn, _slot3_btn, _slot4_btn, _action_btn]
+			var btns := [_ads_btn, _jump_btn, _crouch_btn, _reload_btn, _swap_btn, _pov_btn, _buy_btn, _pause_btn, _score_btn, _slot1_btn, _slot2_btn, _slot3_btn, _slot4_btn, _action_btn]
 			for btn in btns:
 				if btn.visible and btn.get_global_rect().has_point(pos):
 					return

@@ -11,8 +11,9 @@ Offline Counter-Strike-inspired **5v5 tactical bomb-defusal FPS** built from scr
 5. Press **Play (▶)** to launch `scenes/main.tscn`.
 
 ## Features Included
-- **Thermal & 60 FPS Optimization:** Internal 3D render scale locked near 720p (`0.67`) with a `60 FPS` cap, single-sample UV-tiled map geometry (no heavy triplanar shader overhead), and sculpted low-draw-call `.obj` meshes.
-- **4 Distinct Sculpted Operator Classes (5v5):** Assault, Heavy Breacher, Recon Ghost, and Tech Specialist — built from smooth beveled `.obj` helmets, sculpted heads/masks, curved visors, organic limbs, and distinct CT/T color schemes.
-- **Dynamic Shadows & Zone Lighting:** Deep ambient contrast with PSSM directional shadows plus electric blue, deep purple, and golden-yellow zone light pools across *Sandstone Yard* (78m × 66m).
+- **1st / 2nd / 3rd Person POV Toggle:** One HUD button (`1ST POV` / `2ND POV` / `3RD POV`) cycles live between First-Person arms/viewmodel, Second-Person enemy-eyes camera, and Third-Person collision-safe over-shoulder camera.
+- **Thermal & 60 FPS Optimization:** Internal 3D render scale locked near 720p (`0.60`) with a `60 FPS` cap (plus live `COOL 540p / 45 FPS` preset in Menu), single-sample UV-tiled map geometry, and sculpted low-draw-call `.obj` meshes.
+- **4 Distinct Sculpted Operator Classes (100% Offline 5v5):** Assault, Heavy Breacher, Recon Ghost, and Tech Specialist — zero internet required, with hybrid NavMesh + multi-hop lane AI and radar gunfire pings.
+- **Dynamic Shadows & Zone Lighting:** Deep ambient contrast with orthogonal directional shadows plus electric blue, deep purple, and golden-yellow zone light pools across *Sandstone Yard* (78m × 66m).
 - **Sculpted First-Person Weapons & Arms:** Beveled `.obj` AK-47 (curved mag + walnut furniture), M4A1 (quad-rail + suppressor), MP5-SD, USP-Tactical, Glock-18C, Combat Knife, and throwable **HE Frag Grenade** held by tapered tactical sleeves and gloves.
 - **Mobile Touch Controls & Scoreboard:** Multi-touch virtual joystick, drag-while-firing recoil control, direct `[RIFLE] [PISTOL] [KNIFE] [FRAG]` slot bar, live 5v5 K/D scoreboard, multikill callouts, and procedural `AudioStreamWAV` SFX.

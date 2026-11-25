@@ -58,14 +58,20 @@ func _draw() -> void:
 		var bp := map_center + Vector2(GameManager.bomb_position.x, GameManager.bomb_position.z) * scale_f
 		draw_circle(bp, 4.5, Color(1.0, 0.2, 0.2))
 
-	# Agents on radar (Player + Teammates)
+	# Agents on radar (Player + Teammates + Firing Enemies)
 	if hud._player != null:
 		for ag in hud._agents:
 			if not is_instance_valid(ag) or not ag.is_alive:
 				continue
-			if ag.team != hud._player.team:
+			var is_ally: bool = (ag.team == hud._player.team)
+			var is_pinged: bool = (not is_ally and ag.get("radar_ping_timer") != null and ag.radar_ping_timer > 0.0)
+			if not is_ally and not is_pinged:
 				continue
 			var rp := map_center + Vector2(ag.global_position.x, ag.global_position.z) * scale_f
 			rp = rp.clamp(map_rect.position + Vector2(4, 4), map_rect.end - Vector2(4, 4))
-			var dot_col := Color(0.2, 1.0, 0.55) if ag == hud._player else Color(0.35, 0.76, 1.0)
-			draw_circle(rp, 4.2 if ag == hud._player else 3.2, dot_col)
+			var dot_col := Color(1.0, 0.28, 0.24)
+			var dot_r := 3.6
+			if is_ally:
+				dot_col = Color(0.2, 1.0, 0.55) if ag == hud._player else Color(0.35, 0.76, 1.0)
+				dot_r = 4.2 if ag == hud._player else 3.2
+			draw_circle(rp, dot_r, dot_col)

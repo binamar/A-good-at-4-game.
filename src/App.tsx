@@ -193,7 +193,8 @@ export default function App() {
                 <p className="text-slate-300 text-base leading-relaxed max-w-2xl">
                   Generated inside <code className="text-amber-300 text-sm">/godot_project</code> with sculpted Wavefront
                   character and weapon meshes across 4 operator archetypes, 512px PBR textures, purple/blue/yellow
-                  zone lighting, 720p 3D scaling capped at 60 FPS, and multi-touch drag-while-firing controls.
+                  zone lighting, 720p 3D scaling capped at 60 FPS, single-button 1st/2nd/3rd person POV switching, and
+                  100% offline 5v5 AI bots.
                 </p>
               </div>
 
@@ -215,16 +216,16 @@ export default function App() {
                 <p className="font-display text-lg font-semibold text-slate-100 mt-1 tabular-nums">720p Scale · 60 FPS</p>
               </div>
               <div className="bg-slate-900 border border-slate-800 rounded-xl p-4">
-                <p className="text-xs text-slate-400">Operator Archetypes</p>
-                <p className="font-display text-lg font-semibold text-slate-100 mt-1 tabular-nums">4 Classes · 5v5</p>
+                <p className="text-xs text-slate-400">Camera Modes</p>
+                <p className="font-display text-lg font-semibold text-slate-100 mt-1">1st / 2nd / 3rd POV</p>
               </div>
               <div className="bg-slate-900 border border-slate-800 rounded-xl p-4">
                 <p className="text-xs text-slate-400">Arena Footprint</p>
                 <p className="font-display text-lg font-semibold text-slate-100 mt-1 tabular-nums">78m × 66m</p>
               </div>
               <div className="bg-slate-900 border border-slate-800 rounded-xl p-4">
-                <p className="text-xs text-slate-400">Lighting</p>
-                <p className="font-display text-lg font-semibold text-slate-100 mt-1">PSSM + Zone Lights</p>
+                <p className="text-xs text-slate-400">Offline 5v5</p>
+                <p className="font-display text-lg font-semibold text-slate-100 mt-1">4 Classes · Zone Lights</p>
               </div>
             </section>
 
@@ -335,9 +336,9 @@ export default function App() {
                   <Shield className="w-4 h-4 text-sky-400" />
                   Mobile Optimization Rules Applied
                 </h4>
-                <p>Single-sample UV-tiled BoxMeshes eliminate 3× triplanar fragment texture overhead on mobile GPUs.</p>
-                <p>0.67× internal 3D render scaling (~720p) with 60 FPS cap keeps thermals low while keeping 2D HUD sharp.</p>
-                <p>8 non-shadowed purple, blue, and golden-yellow zone lights pair with 2-split PSSM directional shadows.</p>
+                <p>Single-sample UV-tiled BoxMeshes and specular-free walls cut mobile GPU fragment load in half.</p>
+                <p>0.60× internal 3D scale (~720p) + live COOL (540p / 45 FPS) preset prevent phone overheating.</p>
+                <p>100% offline 5v5 AI uses hybrid NavMesh + multi-hop lane routing with radar gunfire pings.</p>
               </div>
             </div>
           </div>

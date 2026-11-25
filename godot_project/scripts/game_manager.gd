@@ -23,7 +23,7 @@ enum MatchState {
 }
 
 const ROUNDS_TO_WIN := 7
-const FREEZE_DURATION := 3.5
+const FREEZE_DURATION := 2.5
 const ROUND_DURATION := 110.0
 const BOMB_DURATION := 40.0
 const ROUND_END_DURATION := 3.5
@@ -52,6 +52,26 @@ var bomb_beep_accum: float = 0.0
 
 var match_controller: Node = null
 var touch_sensitivity: float = 0.28
+var graphics_quality: int = 1 # 0=Ultra Cool (540p/45fps), 1=Balanced (720p/60fps), 2=Sharp (900p/60fps)
+
+func _ready() -> void:
+	apply_graphics_quality(graphics_quality)
+
+func apply_graphics_quality(level: int) -> void:
+	graphics_quality = clampi(level, 0, 2)
+	var vp := get_tree().root
+	if graphics_quality == 0:
+		if vp != null:
+			vp.scaling_3d_scale = 0.48
+		Engine.max_fps = 45
+	elif graphics_quality == 1:
+		if vp != null:
+			vp.scaling_3d_scale = 0.60
+		Engine.max_fps = 60
+	else:
+		if vp != null:
+			vp.scaling_3d_scale = 0.75
+		Engine.max_fps = 60
 
 func start_new_match(chosen_team: int) -> void:
 	player_team = chosen_team

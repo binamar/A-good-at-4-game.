@@ -12,6 +12,8 @@ const LANES := ["A_SITE", "A_SHORT", "MID", "B_CONN", "B_SITE"]
 
 var bots: Array = []
 var all_agents: Array = []
+var _last_ct_alive: int = -1
+var _last_t_alive: int = -1
 
 func _ready() -> void:
 	var bot_scene := ResourceLoader.load("res://scenes/bot_agent.tscn") as PackedScene
@@ -35,7 +37,7 @@ func setup_round_entities() -> void:
 	var p_team: int = GameManager.player_team
 	var p_spawns: Array = arena.ct_spawns if p_team == GameManager.Team.CT else arena.t_spawns
 	var p_yaw: float = PI if p_team == GameManager.Team.CT else 0.0
-	player.reset_for_round(p_spawns[2], p_yaw, p_team, arena)
+	player.reset_for_round(p_spawns[2], p_yaw, p_team, arena, all_agents)
 	GameManager.register_agent_scoreboard("You", p_team)
 
 	var bot_i := 0
@@ -70,7 +72,13 @@ func setup_round_entities() -> void:
 func _process(_delta: float) -> void:
 	if not player.is_alive and not spectator_cam.current:
 		spectator_cam.current = true
-	hud.refresh_alive_counts(get_alive_counts())
+	var counts := get_alive_counts()
+	var ct_c: int = counts.get(GameManager.Team.CT, 0)
+	var t_c: int = counts.get(GameManager.Team.T, 0)
+	if ct_c != _last_ct_alive or t_c != _last_t_alive:
+		_last_ct_alive = ct_c
+		_last_t_alive = t_c
+		hud.refresh_alive_counts(counts)
 
 func give_player_weapon(weapon_id: int) -> void:
 	player.give_weapon(weapon_id)

@@ -22,14 +22,14 @@ var t_spawns: Array[Vector3] = [
 
 var tactical_waypoints: Dictionary = {
 	"A_SITE": Vector3(24.0, 0.1, -8.0),
-	"A_LONG": Vector3(24.0, 0.1, 14.0),
-	"A_SHORT": Vector3(11.5, 0.1, -2.5),
-	"MID": Vector3(0.0, 0.1, 0.0),
+	"A_LONG": Vector3(25.7, 0.1, 6.0),
+	"A_SHORT": Vector3(12.5, 0.1, -2.5),
+	"MID": Vector3(4.6, 0.1, 0.0),
 	"B_SITE": Vector3(-24.0, 0.1, -8.0),
-	"B_TUNNEL": Vector3(-24.0, 0.1, 14.0),
-	"B_CONN": Vector3(-11.5, 0.1, -2.5),
-	"CT_MID": Vector3(0.0, 0.1, -18.0),
-	"T_MID": Vector3(0.0, 0.1, 18.0),
+	"B_TUNNEL": Vector3(-25.7, 0.1, 6.0),
+	"B_CONN": Vector3(-12.5, 0.1, -2.5),
+	"CT_MID": Vector3(0.0, 0.1, -17.0),
+	"T_MID": Vector3(0.0, 0.1, 17.0),
 }
 
 var _mat_floor: StandardMaterial3D
@@ -61,8 +61,8 @@ func _ready() -> void:
 	_prepare_materials_and_meshes()
 	_build_sandstone_arena()
 	_add_zone_lighting()
-	_setup_navmesh()
 	_setup_fx_pools()
+	call_deferred("_setup_navmesh")
 
 func set_agents_ref(agents: Array) -> void:
 	_agents_ref = agents
@@ -86,26 +86,24 @@ func _physics_process(delta: float) -> void:
 	_update_grenades(delta)
 
 func _prepare_materials_and_meshes() -> void:
-	_mat_floor = _make_pbr_mat("res://assets/textures/concrete_floor.png", "res://assets/textures/concrete_floor_normal.png", Color(0.92, 0.90, 0.86), 0.22, 0.88, 1.2)
-	_mat_wall = _make_pbr_mat("res://assets/textures/sandstone_wall.png", "res://assets/textures/sandstone_wall_normal.png", Color(0.96, 0.90, 0.80), 0.22, 0.92, 1.35)
-	_mat_crate = _make_pbr_mat("res://assets/textures/crate_wood.png", "res://assets/textures/crate_wood_normal.png", Color(0.92, 0.84, 0.70), 0.82, 0.84, 1.15)
-	_mat_metal = _make_pbr_mat("res://assets/textures/metal_panel.png", "res://assets/textures/metal_panel_normal.png", Color(0.62, 0.68, 0.76), 0.45, 0.45, 1.1)
-	_mat_hazard = _make_pbr_mat("res://assets/textures/caution_stripe.png", "", Color(1.0, 0.92, 0.75), 0.45, 0.75, 1.0)
+	_mat_floor = _make_pbr_mat("res://assets/textures/concrete_floor.png", "", Color(0.92, 0.90, 0.86), 0.22, 0.92, 1.0, false)
+	_mat_wall = _make_pbr_mat("res://assets/textures/sandstone_wall.png", "", Color(0.96, 0.90, 0.80), 0.22, 0.94, 1.0, false)
+	_mat_crate = _make_pbr_mat("res://assets/textures/crate_wood.png", "res://assets/textures/crate_wood_normal.png", Color(0.92, 0.84, 0.70), 0.82, 0.82, 1.0, true)
+	_mat_metal = _make_pbr_mat("res://assets/textures/metal_panel.png", "res://assets/textures/metal_panel_normal.png", Color(0.64, 0.70, 0.78), 0.45, 0.48, 1.0, true)
+	_mat_hazard = _make_pbr_mat("res://assets/textures/caution_stripe.png", "", Color(1.0, 0.92, 0.75), 0.45, 0.80, 1.0, false)
 
 	_mat_trim = StandardMaterial3D.new()
 	_mat_trim.albedo_color = Color(0.36, 0.34, 0.31)
-	_mat_trim.roughness = 0.85
+	_mat_trim.roughness = 0.90
+	_mat_trim.specular_mode = BaseMaterial3D.SPECULAR_DISABLED
 
 	_mat_sandbag = StandardMaterial3D.new()
 	var camo := ResourceLoader.load("res://assets/textures/tactical_camo.png") as Texture2D
-	var camo_n := ResourceLoader.load("res://assets/textures/tactical_camo_normal.png") as Texture2D
 	if camo != null:
 		_mat_sandbag.albedo_texture = camo
-	if camo_n != null:
-		_mat_sandbag.normal_enabled = true
-		_mat_sandbag.normal_texture = camo_n
 	_mat_sandbag.albedo_color = Color(0.76, 0.68, 0.52)
-	_mat_sandbag.roughness = 0.94
+	_mat_sandbag.roughness = 0.95
+	_mat_sandbag.specular_mode = BaseMaterial3D.SPECULAR_DISABLED
 
 	_crate_mesh = ResourceLoader.load("res://assets/models/crate_tactical.obj") as Mesh
 	if _crate_mesh == null:
@@ -121,7 +119,7 @@ func _prepare_materials_and_meshes() -> void:
 		c.height = 1.1
 		_barrel_mesh = c
 
-func _make_pbr_mat(tex_path: String, norm_path: String, tint: Color, _uv_scale: float, rough: float, norm_scale: float) -> StandardMaterial3D:
+func _make_pbr_mat(tex_path: String, norm_path: String, tint: Color, _uv_scale: float, rough: float, norm_scale: float, allow_spec: bool = true) -> StandardMaterial3D:
 	var mat := StandardMaterial3D.new()
 	var tex := ResourceLoader.load(tex_path) as Texture2D
 	if tex != null:
@@ -134,6 +132,8 @@ func _make_pbr_mat(tex_path: String, norm_path: String, tint: Color, _uv_scale: 
 			mat.normal_scale = norm_scale
 	mat.albedo_color = tint
 	mat.roughness = rough
+	if not allow_spec:
+		mat.specular_mode = BaseMaterial3D.SPECULAR_DISABLED
 	return mat
 
 func _build_sandstone_arena() -> void:
@@ -141,14 +141,14 @@ func _build_sandstone_arena() -> void:
 	_geometry_root.name = "ArenaGeometry"
 	add_child(_geometry_root)
 
-	# Main Floor (78m x 66m)
-	_add_box(Vector3(0.0, -0.25, 0.0), Vector3(78.0, 0.5, 66.0), _mat_floor)
+	# Main Floor (78m x 66m) - no shadow casting needed on flat floor
+	_add_box(Vector3(0.0, -0.25, 0.0), Vector3(78.0, 0.5, 66.0), _mat_floor, true, false)
 
-	# Outer Perimeter Walls + Top Sandstone Trim
-	_add_walled_block(Vector3(0.0, 3.0, -32.5), Vector3(78.0, 6.0, 1.2))
-	_add_walled_block(Vector3(0.0, 3.0, 32.5), Vector3(78.0, 6.0, 1.2))
-	_add_walled_block(Vector3(-38.5, 3.0, 0.0), Vector3(1.2, 6.0, 66.0))
-	_add_walled_block(Vector3(38.5, 3.0, 0.0), Vector3(1.2, 6.0, 66.0))
+	# Outer Perimeter Walls + Top Sandstone Trim (no shadow casting on outer bounds)
+	_add_walled_block(Vector3(0.0, 3.0, -32.5), Vector3(78.0, 6.0, 1.2), false)
+	_add_walled_block(Vector3(0.0, 3.0, 32.5), Vector3(78.0, 6.0, 1.2), false)
+	_add_walled_block(Vector3(-38.5, 3.0, 0.0), Vector3(1.2, 6.0, 66.0), false)
+	_add_walled_block(Vector3(38.5, 3.0, 0.0), Vector3(1.2, 6.0, 66.0), false)
 
 	# Lane Dividers separating Mid from A-Side (X = +12.5) with wide A-Short & Spawn exits
 	_add_walled_block(Vector3(12.5, 2.5, -14.0), Vector3(1.4, 5.0, 10.0))
@@ -227,12 +227,12 @@ func _build_sandstone_arena() -> void:
 	_add_sandbags(Vector3(-7.0, 0.5, 22.0), Vector3(3.2, 1.0, 0.9))
 	_add_sandbags(Vector3(7.0, 0.5, 22.0), Vector3(3.2, 1.0, 0.9))
 
-func _add_walled_block(pos: Vector3, size: Vector3) -> void:
-	_add_box(pos, size, _mat_wall, true)
-	_add_box(Vector3(pos.x, pos.y + size.y * 0.5 + 0.12, pos.z), Vector3(size.x + 0.12, 0.24, size.z + 0.12), _mat_trim, false)
+func _add_walled_block(pos: Vector3, size: Vector3, cast_sh: bool = true) -> void:
+	_add_box(pos, size, _mat_wall, true, cast_sh)
+	_add_box(Vector3(pos.x, pos.y + size.y * 0.5 + 0.12, pos.z), Vector3(size.x + 0.12, 0.24, size.z + 0.12), _mat_trim, false, false)
 
 func _add_sandbags(pos: Vector3, size: Vector3) -> void:
-	_add_box(pos, size, _mat_sandbag, true)
+	_add_box(pos, size, _mat_sandbag, true, false)
 
 func _make_tiled_box_mesh(size: Vector3, tile_scale: float = 0.25) -> ArrayMesh:
 	var bm := BoxMesh.new()
@@ -266,6 +266,7 @@ func _add_ramp(pos: Vector3, size: Vector3, tilt_deg_x: float, mat: Material) ->
 	var mi := MeshInstance3D.new()
 	mi.mesh = _make_tiled_box_mesh(size, 0.24)
 	mi.material_override = mat
+	mi.cast_shadow = GeometryInstance3D.SHADOW_CASTING_SETTING_OFF
 	body.add_child(mi)
 
 	var col := CollisionShape3D.new()
@@ -275,7 +276,7 @@ func _add_ramp(pos: Vector3, size: Vector3, tilt_deg_x: float, mat: Material) ->
 	body.add_child(col)
 	_geometry_root.add_child(body)
 
-func _add_box(pos: Vector3, size: Vector3, mat: Material, with_collision: bool = true) -> void:
+func _add_box(pos: Vector3, size: Vector3, mat: Material, with_collision: bool = true, cast_sh: bool = true) -> void:
 	var body := StaticBody3D.new()
 	body.position = pos
 	body.collision_layer = 1
@@ -289,6 +290,8 @@ func _add_box(pos: Vector3, size: Vector3, mat: Material, with_collision: bool =
 		t_scale = 0.75
 	mi.mesh = _make_tiled_box_mesh(size, t_scale)
 	mi.material_override = mat
+	if not cast_sh:
+		mi.cast_shadow = GeometryInstance3D.SHADOW_CASTING_SETTING_OFF
 	body.add_child(mi)
 
 	if with_collision:
@@ -301,15 +304,13 @@ func _add_box(pos: Vector3, size: Vector3, mat: Material, with_collision: bool =
 	_geometry_root.add_child(body)
 
 func _add_zone_lighting() -> void:
-	# Stylized Purple, Blue, and Golden-Yellow accent lights + physical emissive fixtures (non-shadowed for cool mobile FPS)
-	_add_accent_light(Vector3(0.0, 3.6, -24.0), Color(0.20, 0.62, 1.0), 3.0, 17.0, Vector3(3.2, 0.16, 0.16))    # CT Spawn Electric Blue
-	_add_accent_light(Vector3(-24.0, 3.8, 4.8), Color(0.24, 0.68, 1.0), 2.8, 16.0, Vector3(3.0, 0.16, 0.16))    # B Tunnels Cool Blue
-	_add_accent_light(Vector3(-11.8, 3.6, -2.5), Color(0.68, 0.26, 1.0), 3.1, 15.5, Vector3(0.16, 0.16, 3.0))   # B Connector Deep Purple
-	_add_accent_light(Vector3(11.8, 3.6, -2.5), Color(0.72, 0.28, 1.0), 3.1, 15.5, Vector3(0.16, 0.16, 3.0))    # A Short Deep Purple
-	_add_accent_light(Vector3(34.5, 3.8, -18.0), Color(0.70, 0.30, 1.0), 2.6, 14.0, Vector3(2.4, 0.16, 0.16))   # A Heaven Violet
-	_add_accent_light(Vector3(24.0, 4.4, -8.0), Color(1.0, 0.76, 0.22), 3.2, 17.5, Vector3(2.8, 0.16, 0.16))    # Site A Golden Yellow
-	_add_accent_light(Vector3(0.0, 4.5, 0.0), Color(1.0, 0.80, 0.28), 2.8, 16.5, Vector3(2.4, 0.16, 2.4))       # Mid Courtyard Amber
-	_add_accent_light(Vector3(0.0, 3.6, 24.0), Color(1.0, 0.66, 0.18), 3.0, 17.0, Vector3(3.2, 0.16, 0.16))     # T Spawn Warm Yellow
+	# 6 non-overlapping Purple, Blue, and Golden-Yellow light pools (1 light per fragment max = cool mobile FPS)
+	_add_accent_light(Vector3(0.0, 3.6, -24.0), Color(0.20, 0.62, 1.0), 2.8, 13.5, Vector3(3.2, 0.16, 0.16))    # CT Spawn Electric Blue
+	_add_accent_light(Vector3(-24.0, 3.8, -6.0), Color(0.24, 0.68, 1.0), 2.8, 13.5, Vector3(3.0, 0.16, 0.16))    # Site B Cool Blue
+	_add_accent_light(Vector3(-12.2, 3.6, -2.5), Color(0.70, 0.28, 1.0), 3.0, 12.0, Vector3(0.16, 0.16, 3.0))    # B Connector Deep Purple
+	_add_accent_light(Vector3(12.2, 3.6, -2.5), Color(0.72, 0.28, 1.0), 3.0, 12.0, Vector3(0.16, 0.16, 3.0))     # A Short Deep Purple
+	_add_accent_light(Vector3(24.0, 4.4, -8.0), Color(1.0, 0.76, 0.22), 3.0, 13.5, Vector3(2.8, 0.16, 0.16))     # Site A Golden Yellow
+	_add_accent_light(Vector3(0.0, 4.4, 20.0), Color(1.0, 0.68, 0.20), 2.8, 13.5, Vector3(3.0, 0.16, 0.16))      # T Side Golden Yellow
 
 func _add_accent_light(pos: Vector3, col: Color, energy: float, rng: float, bar_size: Vector3) -> void:
 	var omni := OmniLight3D.new()
@@ -317,7 +318,7 @@ func _add_accent_light(pos: Vector3, col: Color, energy: float, rng: float, bar_
 	omni.light_color = col
 	omni.light_energy = energy
 	omni.omni_range = rng
-	omni.omni_attenuation = 1.35
+	omni.omni_attenuation = 1.4
 	omni.shadow_enabled = false
 	_geometry_root.add_child(omni)
 
@@ -332,6 +333,32 @@ func _add_accent_light(pos: Vector3, col: Color, energy: float, rng: float, bar_
 	mat.albedo_color = col.lightened(0.25)
 	bar.material_override = mat
 	_geometry_root.add_child(bar)
+
+func get_route_for_lane(team: int, lane: String) -> Array:
+	if team == 1:
+		match lane:
+			"A_SITE":
+				return [Vector3(10.0, 0.1, -22.5), Vector3(24.0, 0.1, -18.0), Vector3(24.0, 0.1, -8.0), Vector3(24.0, 0.1, 4.0)]
+			"A_SHORT":
+				return [Vector3(0.0, 0.1, -17.0), Vector3(4.6, 0.1, -6.0), Vector3(12.5, 0.1, -2.5), Vector3(22.0, 0.1, -6.0)]
+			"MID":
+				return [Vector3(0.0, 0.1, -17.0), Vector3(4.6, 0.1, -6.0), Vector3(4.6, 0.1, 6.0), Vector3(0.0, 0.1, 17.0)]
+			"B_CONN":
+				return [Vector3(0.0, 0.1, -17.0), Vector3(-4.6, 0.1, -6.0), Vector3(-12.5, 0.1, -2.5), Vector3(-22.0, 0.1, -6.0)]
+			_:
+				return [Vector3(-10.0, 0.1, -22.5), Vector3(-24.0, 0.1, -18.0), Vector3(-24.0, 0.1, -8.0), Vector3(-25.7, 0.1, 6.0)]
+	else:
+		match lane:
+			"A_SITE":
+				return [Vector3(10.0, 0.1, 22.5), Vector3(25.7, 0.1, 14.0), Vector3(25.7, 0.1, 6.0), Vector3(24.0, 0.1, -8.0)]
+			"A_SHORT":
+				return [Vector3(0.0, 0.1, 17.0), Vector3(4.6, 0.1, 6.0), Vector3(12.5, 0.1, -2.5), Vector3(24.0, 0.1, -8.0)]
+			"MID":
+				return [Vector3(0.0, 0.1, 17.0), Vector3(-4.6, 0.1, 6.0), Vector3(-4.6, 0.1, -6.0), Vector3(0.0, 0.1, -17.0)]
+			"B_CONN":
+				return [Vector3(0.0, 0.1, 17.0), Vector3(-4.6, 0.1, 6.0), Vector3(-12.5, 0.1, -2.5), Vector3(-24.0, 0.1, -8.0)]
+			_:
+				return [Vector3(-10.0, 0.1, 22.5), Vector3(-25.7, 0.1, 14.0), Vector3(-25.7, 0.1, 6.0), Vector3(-24.0, 0.1, -8.0)]
 
 func _add_crate(pos: Vector3, size: Vector3) -> void:
 	var body := StaticBody3D.new()

@@ -1,7 +1,7 @@
 extends CharacterBody3D
 
 const GRAVITY := 20.0
-const MOVE_SPEED := 5.15
+const MOVE_SPEED := 5.25
 const PLANT_TIME := 3.2
 const DEFUSE_TIME := 5.5
 
@@ -16,11 +16,11 @@ var agent_name: String = "Bot"
 var is_alive: bool = true
 var hp: int = 100
 var weapon_id: int = 5
+var radar_ping_timer: float = 0.0
 var _role_idx: int = 0
 
 var _arena = null
 var _agents_ref: Array = []
-var _flash_mats: Array = []
 var _flash_timer: float = 0.0
 var _walk_phase: float = 0.0
 var _death_anim_t: float = 0.0
@@ -39,15 +39,18 @@ var _torso_mesh_inst: MeshInstance3D
 var _helmet_mesh_inst: MeshInstance3D
 var _visor_mesh_inst: MeshInstance3D
 
-var _visor_mat: ShaderMaterial
-var _skin_mat: ShaderMaterial
-var _helmet_mat: ShaderMaterial
-var _armor_mat: ShaderMaterial
-var _gear_mat: ShaderMaterial
-var _gun_mat: ShaderMaterial
+var _visor_mat: StandardMaterial3D
+var _skin_mat: StandardMaterial3D
+var _helmet_mat: StandardMaterial3D
+var _armor_mat: StandardMaterial3D
+var _gear_mat: StandardMaterial3D
+var _gun_mat: StandardMaterial3D
+var _flash_mat: StandardMaterial3D
 
 var _torso_meshes: Array = []
 var _helmet_meshes: Array = []
+var _route_pts: Array = []
+var _route_idx: int = 0
 
 var _fire_cd: float = 0.0
 var _burst_left: int = 0
@@ -71,14 +74,15 @@ func _ready() -> void:
 	_exclude_rids.append(hitbox_body.get_rid())
 	_exclude_rids.append(hitbox_head.get_rid())
 
-func _make_flash_mat(col: Color, rough: float = 0.68) -> ShaderMaterial:
-	var shader := ResourceLoader.load("res://shaders/hit_flash.gdshader") as Shader
-	var sm := ShaderMaterial.new()
-	sm.shader = shader
-	sm.set_shader_parameter("albedo_color", col)
-	sm.set_shader_parameter("roughness_val", rough)
-	_flash_mats.append(sm)
-	return sm
+func _make_std_mat(col: Color, rough: float = 0.78, unshaded: bool = false, no_spec: bool = true) -> StandardMaterial3D:
+	var m := StandardMaterial3D.new()
+	m.albedo_color = col
+	m.roughness = rough
+	if unshaded:
+		m.shading_mode = BaseMaterial3D.SHADING_MODE_UNSHADED
+	elif no_spec:
+		m.specular_mode = BaseMaterial3D.SPECULAR_DISABLED
+	return m
 
 func _load_mesh(path: String) -> Mesh:
 	var m := ResourceLoader.load(path) as Mesh
@@ -89,7 +93,7 @@ func _load_mesh(path: String) -> Mesh:
 	fallback.height = 0.4
 	return fallback
 
-func _add_mesh(parent: Node3D, mesh_res: Mesh, pos: Vector3, mat: Material, rot_deg: Vector3 = Vector3.ZERO, shadows: bool = true) -> MeshInstance3D:
+func _add_mesh(parent: Node3D, mesh_res: Mesh, pos: Vector3, mat: Material, rot_deg: Vector3 = Vector3.ZERO, shadows: bool = false) -> MeshInstance3D:
 	var mi := MeshInstance3D.new()
 	mi.mesh = mesh_res
 	mi.position = pos
@@ -101,13 +105,13 @@ func _add_mesh(parent: Node3D, mesh_res: Mesh, pos: Vector3, mat: Material, rot_
 	return mi
 
 func _build_articulated_operator() -> void:
-	_flash_mats.clear()
-	_armor_mat = _make_flash_mat(Color(0.18, 0.36, 0.64), 0.65)
-	_helmet_mat = _make_flash_mat(Color(0.13, 0.16, 0.22), 0.50)
-	_gear_mat = _make_flash_mat(Color(0.18, 0.20, 0.24), 0.72)
-	_visor_mat = _make_flash_mat(Color(0.20, 0.85, 1.0), 0.16)
-	_skin_mat = _make_flash_mat(Color(0.84, 0.66, 0.52), 0.78)
-	_gun_mat = _make_flash_mat(Color(0.14, 0.16, 0.20), 0.38)
+	_armor_mat = _make_std_mat(Color(0.18, 0.36, 0.64), 0.72, false, true)
+	_helmet_mat = _make_std_mat(Color(0.13, 0.16, 0.22), 0.55, false, false)
+	_gear_mat = _make_std_mat(Color(0.18, 0.20, 0.24), 0.80, false, true)
+	_visor_mat = _make_std_mat(Color(0.20, 0.85, 1.0), 0.20, true, true)
+	_skin_mat = _make_std_mat(Color(0.84, 0.66, 0.52), 0.82, false, true)
+	_gun_mat = _make_std_mat(Color(0.14, 0.16, 0.20), 0.42, false, false)
+	_flash_mat = _make_std_mat(Color(1.0, 0.88, 0.80), 0.50, true, true)
 
 	_torso_meshes.clear()
 	_torso_meshes.append(_load_mesh("res://assets/models/op_torso_assault.obj"))
@@ -127,18 +131,18 @@ func _build_articulated_operator() -> void:
 	var leg_mesh := _load_mesh("res://assets/models/op_limb_leg.obj")
 	var rifle_mesh := _load_mesh("res://assets/models/op_rifle_world.obj")
 
-	# Torso Pivot
+	# Torso Pivot (casts main character shadow)
 	_torso_pivot = Node3D.new()
 	_torso_pivot.position = Vector3(0.0, 0.78, 0.0)
 	visual_root.add_child(_torso_pivot)
-	_torso_mesh_inst = _add_mesh(_torso_pivot, _torso_meshes[0], Vector3.ZERO, _armor_mat)
+	_torso_mesh_inst = _add_mesh(_torso_pivot, _torso_meshes[0], Vector3.ZERO, _armor_mat, Vector3.ZERO, true)
 
 	# Expressive Sculpted Head Pivot
 	_head_pivot = Node3D.new()
 	_head_pivot.position = Vector3(0.0, 0.62, 0.0)
 	_torso_pivot.add_child(_head_pivot)
-	_add_mesh(_head_pivot, head_mesh, Vector3.ZERO, _skin_mat)
-	_helmet_mesh_inst = _add_mesh(_head_pivot, _helmet_meshes[0], Vector3.ZERO, _helmet_mat)
+	_add_mesh(_head_pivot, head_mesh, Vector3.ZERO, _skin_mat, Vector3.ZERO, false)
+	_helmet_mesh_inst = _add_mesh(_head_pivot, _helmet_meshes[0], Vector3.ZERO, _helmet_mat, Vector3.ZERO, false)
 	_visor_mesh_inst = _add_mesh(_head_pivot, visor_mesh, Vector3.ZERO, _visor_mat, Vector3.ZERO, false)
 
 	# Floating Friendly Diamond Marker (only visible on teammates)
@@ -159,29 +163,29 @@ func _build_articulated_operator() -> void:
 	_left_arm = Node3D.new()
 	_left_arm.position = Vector3(-0.26, 0.48, 0.0)
 	_torso_pivot.add_child(_left_arm)
-	_add_mesh(_left_arm, arm_mesh, Vector3.ZERO, _gear_mat, Vector3(0.0, -24.0, 0.0))
+	_add_mesh(_left_arm, arm_mesh, Vector3.ZERO, _gear_mat, Vector3(0.0, -24.0, 0.0), false)
 
 	_right_arm = Node3D.new()
 	_right_arm.position = Vector3(0.26, 0.48, 0.0)
 	_torso_pivot.add_child(_right_arm)
-	_add_mesh(_right_arm, arm_mesh, Vector3.ZERO, _gear_mat, Vector3(0.0, 10.0, 0.0))
+	_add_mesh(_right_arm, arm_mesh, Vector3.ZERO, _gear_mat, Vector3(0.0, 10.0, 0.0), false)
 
-	_add_mesh(_right_arm, rifle_mesh, Vector3(-0.07, -0.18, -0.34), _gun_mat)
+	_add_mesh(_right_arm, rifle_mesh, Vector3(-0.07, -0.18, -0.34), _gun_mat, Vector3.ZERO, false)
 
 	_gun_muzzle = Marker3D.new()
 	_gun_muzzle.position = Vector3(-0.07, -0.16, -0.84)
 	_right_arm.add_child(_gun_muzzle)
 
-	# Sculpted Legs
+	# Sculpted Legs (cast lower silhouette shadow)
 	_left_leg = Node3D.new()
 	_left_leg.position = Vector3(-0.13, 0.78, 0.0)
 	visual_root.add_child(_left_leg)
-	_add_mesh(_left_leg, leg_mesh, Vector3.ZERO, _gear_mat)
+	_add_mesh(_left_leg, leg_mesh, Vector3.ZERO, _gear_mat, Vector3.ZERO, true)
 
 	_right_leg = Node3D.new()
 	_right_leg.position = Vector3(0.13, 0.78, 0.0)
 	visual_root.add_child(_right_leg)
-	_add_mesh(_right_leg, leg_mesh, Vector3.ZERO, _gear_mat)
+	_add_mesh(_right_leg, leg_mesh, Vector3.ZERO, _gear_mat, Vector3.ZERO, true)
 
 func reset_for_round(spawn_pos: Vector3, p_team: int, p_name: String, lane: String, bomb_carrier: bool, arena_ref, all_agents: Array, p_role: int = 0) -> void:
 	team = p_team
@@ -193,6 +197,7 @@ func reset_for_round(spawn_pos: Vector3, p_team: int, p_name: String, lane: Stri
 	_role_idx = posmod(p_role, 4)
 	is_alive = true
 	hp = 100
+	radar_ping_timer = 0.0
 	weapon_id = WeaponData.WeaponId.M4_RIFLE if p_team == GameManager.Team.CT else WeaponData.WeaponId.AK47_RIFLE
 	global_position = spawn_pos
 	velocity = Vector3.ZERO
@@ -205,6 +210,7 @@ func reset_for_round(spawn_pos: Vector3, p_team: int, p_name: String, lane: Stri
 	_objective_progress = 0.0
 	_death_anim_t = 0.0
 	_stuck_timer = 0.0
+	_flash_timer = 0.0
 	visible = true
 	visual_root.position = Vector3.ZERO
 	visual_root.rotation = Vector3.ZERO
@@ -219,10 +225,10 @@ func reset_for_round(spawn_pos: Vector3, p_team: int, p_name: String, lane: Stri
 	hitbox_head.set_deferred("monitoring", true)
 	hitbox_head.set_deferred("monitorable", true)
 
-	# Assign distinct 3D archetype silhouette per operator role
 	_torso_mesh_inst.mesh = _torso_meshes[_role_idx]
+	_torso_mesh_inst.material_override = _armor_mat
 	_helmet_mesh_inst.mesh = _helmet_meshes[_role_idx]
-	_visor_mesh_inst.visible = (_role_idx != 2) # Recon uses quad-NVGs instead of curved visor
+	_visor_mesh_inst.visible = (_role_idx != 2)
 
 	var skin_tones := [
 		Color(0.86, 0.68, 0.54),
@@ -230,35 +236,47 @@ func reset_for_round(spawn_pos: Vector3, p_team: int, p_name: String, lane: Stri
 		Color(0.56, 0.39, 0.29),
 		Color(0.90, 0.74, 0.62),
 	]
-	_skin_mat.set_shader_parameter("albedo_color", skin_tones[_role_idx])
+	_skin_mat.albedo_color = skin_tones[_role_idx]
 
 	if team == GameManager.Team.CT:
 		var ct_armors := [Color(0.16, 0.35, 0.68), Color(0.13, 0.26, 0.48), Color(0.20, 0.42, 0.58), Color(0.18, 0.28, 0.56)]
 		var ct_visors := [Color(0.22, 0.85, 1.0), Color(0.35, 0.95, 0.85), Color(0.42, 0.72, 1.0), Color(0.68, 0.42, 1.0)]
-		_armor_mat.set_shader_parameter("albedo_color", ct_armors[_role_idx])
-		_helmet_mat.set_shader_parameter("albedo_color", Color(0.12, 0.16, 0.24))
-		_gear_mat.set_shader_parameter("albedo_color", Color(0.16, 0.20, 0.28))
-		_visor_mat.set_shader_parameter("albedo_color", ct_visors[_role_idx])
+		_armor_mat.albedo_color = ct_armors[_role_idx]
+		_helmet_mat.albedo_color = Color(0.12, 0.16, 0.24)
+		_gear_mat.albedo_color = Color(0.16, 0.20, 0.28)
+		_visor_mat.albedo_color = ct_visors[_role_idx]
 	else:
 		var t_armors := [Color(0.74, 0.40, 0.16), Color(0.56, 0.20, 0.18), Color(0.34, 0.36, 0.24), Color(0.66, 0.30, 0.22)]
 		var t_visors := [Color(1.0, 0.46, 0.14), Color(1.0, 0.22, 0.20), Color(1.0, 0.74, 0.20), Color(0.92, 0.30, 0.62)]
-		_armor_mat.set_shader_parameter("albedo_color", t_armors[_role_idx])
-		_helmet_mat.set_shader_parameter("albedo_color", Color(0.24, 0.18, 0.14))
-		_gear_mat.set_shader_parameter("albedo_color", Color(0.22, 0.18, 0.16))
-		_visor_mat.set_shader_parameter("albedo_color", t_visors[_role_idx])
+		_armor_mat.albedo_color = t_armors[_role_idx]
+		_helmet_mat.albedo_color = Color(0.24, 0.18, 0.14)
+		_gear_mat.albedo_color = Color(0.22, 0.18, 0.16)
+		_visor_mat.albedo_color = t_visors[_role_idx]
 
 	_ally_marker.visible = (team == GameManager.player_team)
-	_set_flash(0.0)
+	_load_lane_route(_assigned_lane)
+
 	if global_position.distance_squared_to(Vector3.ZERO) > 0.05:
 		look_at(Vector3(0.0, global_position.y, 0.0), Vector3.UP)
 	rotation.x = 0.0
 	rotation.z = 0.0
 
+func _load_lane_route(lane: String) -> void:
+	_route_pts.clear()
+	_route_idx = 0
+	if _arena != null and _arena.has_method("get_route_for_lane"):
+		var r: Array = _arena.get_route_for_lane(team, lane)
+		for pt in r:
+			_route_pts.append(pt)
+
 func _physics_process(delta: float) -> void:
+	if radar_ping_timer > 0.0:
+		radar_ping_timer -= delta
+
 	if _flash_timer > 0.0:
 		_flash_timer -= delta
 		if _flash_timer <= 0.0:
-			_set_flash(0.0)
+			_torso_mesh_inst.material_override = _armor_mat
 
 	if not is_alive:
 		if _death_anim_t < 1.0:
@@ -311,7 +329,7 @@ func _physics_process(delta: float) -> void:
 
 func _update_target_and_destination() -> void:
 	var best_enemy: Node3D = null
-	var best_dist := 64.0
+	var best_dist := 66.0
 	for ag in _agents_ref:
 		if not is_instance_valid(ag) or ag == self or not ag.is_alive or ag.team == team:
 			continue
@@ -323,11 +341,23 @@ func _update_target_and_destination() -> void:
 
 	if _arena == null:
 		return
-	var dest: Vector3 = _arena.tactical_waypoints.get(_assigned_lane, Vector3.ZERO)
+	var dest := Vector3.ZERO
 	if GameManager.bomb_planted:
 		dest = GameManager.bomb_position
 	elif team == GameManager.Team.T and _is_bomb_carrier:
 		dest = _arena.SITE_A_CENTER if _assigned_lane.begins_with("A") else _arena.SITE_B_CENTER
+	elif not _route_pts.is_empty():
+		var wp: Vector3 = _route_pts[_route_idx]
+		if Vector2(wp.x - global_position.x, wp.z - global_position.z).length() < 2.2:
+			if _route_idx + 1 < _route_pts.size():
+				_route_idx += 1
+			else:
+				var next_lanes := ["MID", "A_SITE", "B_SITE", "A_SHORT", "B_CONN"]
+				_assigned_lane = next_lanes[randi() % next_lanes.size()]
+				_load_lane_route(_assigned_lane)
+		dest = _route_pts[_route_idx] if not _route_pts.is_empty() else _arena.tactical_waypoints.get(_assigned_lane, Vector3.ZERO)
+	else:
+		dest = _arena.tactical_waypoints.get(_assigned_lane, Vector3.ZERO)
 	nav_agent.target_position = dest
 
 func _handle_navigation_and_objective(delta: float) -> void:
@@ -357,33 +387,51 @@ func _handle_navigation_and_objective(delta: float) -> void:
 			return
 
 	_objective_progress = 0.0
-	if nav_agent.is_navigation_finished():
-		# Patrol aggressively toward Mid or opposite site so enemies keep engaging
-		var alt_lanes := ["MID", "A_SITE", "B_SITE", "A_SHORT", "B_CONN"]
-		_assigned_lane = alt_lanes[randi() % alt_lanes.size()]
-		_update_target_and_destination()
-		velocity.x = lerpf(velocity.x, 0.0, clampf(delta * 8.0, 0.0, 1.0))
-		velocity.z = lerpf(velocity.z, 0.0, clampf(delta * 8.0, 0.0, 1.0))
-		return
 
-	var next_pt := nav_agent.get_next_path_position()
-	var dir := next_pt - global_position
+	# Hybrid steering: use NavMesh if synced & active, otherwise direct offline waypoint + obstacle feeler steering
+	var move_target := nav_agent.target_position
+	var map_ready := NavigationServer3D.map_get_iteration_id(nav_agent.get_navigation_map()) > 0
+	if map_ready and not nav_agent.is_navigation_finished():
+		var nav_next := nav_agent.get_next_path_position()
+		if Vector2(nav_next.x - global_position.x, nav_next.z - global_position.z).length_squared() > 0.04:
+			move_target = nav_next
+
+	var dir := move_target - global_position
 	dir.y = 0.0
-	if dir.length_squared() > 0.02:
+	if dir.length_squared() > 0.04:
 		dir = dir.normalized()
+		dir = _steer_around_walls(dir)
 		velocity.x = dir.x * MOVE_SPEED
 		velocity.z = dir.z * MOVE_SPEED
 		_face_point(global_position + dir * 4.0, delta * 7.5)
+	else:
+		_update_target_and_destination()
 
 	if Vector2(velocity.x, velocity.z).length() < 0.55:
 		_stuck_timer += delta
-		if _stuck_timer > 1.1:
+		if _stuck_timer > 0.9:
 			_stuck_timer = 0.0
-			var fallbacks := ["MID", "A_SHORT", "B_CONN", "A_LONG", "B_TUNNEL"]
+			var fallbacks := ["MID", "A_SHORT", "B_CONN", "A_SITE", "B_SITE"]
 			_assigned_lane = fallbacks[randi() % fallbacks.size()]
+			_load_lane_route(_assigned_lane)
 			_update_target_and_destination()
 	else:
 		_stuck_timer = 0.0
+
+func _steer_around_walls(desired_dir: Vector3) -> Vector3:
+	var space := get_world_3d().direct_space_state
+	var origin := global_position + Vector3(0.0, 0.9, 0.0)
+	var q_fwd := PhysicsRayQueryParameters3D.create(origin, origin + desired_dir * 1.4, 1)
+	q_fwd.collide_with_areas = false
+	q_fwd.collide_with_bodies = true
+	if space.intersect_ray(q_fwd).is_empty():
+		return desired_dir
+	var left_dir := desired_dir.rotated(Vector3.UP, deg_to_rad(42.0))
+	var q_left := PhysicsRayQueryParameters3D.create(origin, origin + left_dir * 1.6, 1)
+	q_left.collide_with_areas = false
+	if space.intersect_ray(q_left).is_empty():
+		return left_dir
+	return desired_dir.rotated(Vector3.UP, deg_to_rad(-42.0))
 
 func _handle_combat_burst() -> void:
 	if _burst_pause > 0.0 or _fire_cd > 0.0 or _target_enemy == null:
@@ -397,6 +445,7 @@ func _handle_combat_burst() -> void:
 		_burst_pause = randf_range(0.30, 0.55)
 
 func _fire_at_target(target: Node3D) -> void:
+	radar_ping_timer = 1.8
 	var origin := global_position + Vector3(0.0, 1.48, 0.0)
 	var aim_pt := target.global_position + Vector3(0.0, 1.25, 0.0)
 	var base_dir := (aim_pt - origin).normalized()
@@ -459,14 +508,16 @@ func take_damage(amount: float, killer_name: String, killer_team: int, weapon_sh
 	if not is_alive:
 		return false
 	hp = maxi(0, hp - int(round(amount)))
-	_set_flash(1.0)
-	_flash_timer = 0.09
+	_torso_mesh_inst.material_override = _flash_mat
+	_flash_timer = 0.08
 	if _target_enemy == null and killer_team != team:
 		_assigned_lane = "MID"
+		_load_lane_route("MID")
 		_repath_timer = 0.05
 	if hp <= 0:
 		is_alive = false
 		_ally_marker.visible = false
+		_torso_mesh_inst.material_override = _armor_mat
 		hitbox_body.set_deferred("monitoring", false)
 		hitbox_body.set_deferred("monitorable", false)
 		hitbox_head.set_deferred("monitoring", false)
@@ -475,8 +526,3 @@ func take_damage(amount: float, killer_name: String, killer_team: int, weapon_sh
 		GameManager.register_kill(killer_name, killer_team, agent_name, team, weapon_short, is_headshot, killer_is_player)
 		return true
 	return false
-
-func _set_flash(val: float) -> void:
-	for m in _flash_mats:
-		var sm: ShaderMaterial = m
-		sm.set_shader_parameter("flash_amount", val)
