@@ -1,0 +1,84 @@
+[gd_scene load_steps=2 format=3]
+
+[ext_resource type="Script" path="res://scripts/main_menu.gd" id="1_menu"]
+
+[node name="MainMenu" type="Control"]
+layout_mode = 3
+anchors_preset = 15
+anchor_right = 1.0
+anchor_bottom = 1.0
+grow_horizontal = 2
+grow_vertical = 2
+script = ExtResource("1_menu")
+
+[node name="Background" type="ColorRect" parent="."]
+layout_mode = 1
+anchors_preset = 15
+anchor_right = 1.0
+anchor_bottom = 1.0
+color = Color(0.06, 0.08, 0.12, 1)
+
+[node name="CenterBox" type="CenterContainer" parent="."]
+layout_mode = 1
+anchors_preset = 15
+anchor_right = 1.0
+anchor_bottom = 1.0
+
+[node name="Panel" type="PanelContainer" parent="CenterBox"]
+custom_minimum_size = Vector2(540, 390)
+layout_mode = 2
+
+[node name="VBox" type="VBoxContainer" parent="CenterBox/Panel"]
+layout_mode = 2
+theme_override_constants/separation = 14
+alignment = 1
+
+[node name="Title" type="Label" parent="CenterBox/Panel/VBox"]
+layout_mode = 2
+theme_override_font_sizes/font_size = 30
+text = "STRIKEPOINT MOBILE 5v5"
+horizontal_alignment = 1
+
+[node name="Subtitle" type="Label" parent="CenterBox/Panel/VBox"]
+layout_mode = 2
+theme_override_font_sizes/font_size = 15
+text = "Map: Sandstone Yard  |  First to 7 Rounds  |  Offline Tactical AI"
+horizontal_alignment = 1
+
+[node name="TeamPrompt" type="Label" parent="CenterBox/Panel/VBox"]
+layout_mode = 2
+text = "Select Your Side:"
+horizontal_alignment = 1
+
+[node name="TeamRow" type="HBoxContainer" parent="CenterBox/Panel/VBox"]
+layout_mode = 2
+theme_override_constants/separation = 14
+alignment = 1
+
+[node name="CTButton" type="Button" parent="CenterBox/Panel/VBox/TeamRow"]
+custom_minimum_size = Vector2(210, 52)
+layout_mode = 2
+text = "COUNTER-TERRORIST (CT)"
+
+[node name="TButton" type="Button" parent="CenterBox/Panel/VBox/TeamRow"]
+custom_minimum_size = Vector2(210, 52)
+layout_mode = 2
+text = "TERRORIST (T)"
+
+[node name="SensLabel" type="Label" parent="CenterBox/Panel/VBox"]
+layout_mode = 2
+text = "Touch Look Sensitivity: 0.28"
+horizontal_alignment = 1
+
+[node name="SensSlider" type="HSlider" parent="CenterBox/Panel/VBox"]
+layout_mode = 2
+min_value = 0.1
+max_value = 0.7
+step = 0.02
+value = 0.28
+
+[node name="PlayButton" type="Button" parent="CenterBox/Panel/VBox"]
+custom_minimum_size = Vector2(0, 58)
+layout_mode = 2
+theme_override_font_sizes/font_size = 20
+text = "DEPLOY 5v5 OFFLINE MATCH"

@@ -1,0 +1,45 @@
+[gd_scene load_steps=5 format=3]
+
+[ext_resource type="Script" path="res://scripts/bot_ai.gd" id="1_bot"]
+
+[sub_resource type="CapsuleShape3D" id="CapsuleShape_bot"]
+radius = 0.36
+height = 1.75
+
+[sub_resource type="BoxShape3D" id="BoxShape_bot_body"]
+size = Vector3(0.56, 1.08, 0.38)
+
+[sub_resource type="SphereShape3D" id="SphereShape_bot_head"]
+radius = 0.23
+
+[node name="BotAgent" type="CharacterBody3D"]
+collision_layer = 2
+collision_mask = 3
+script = ExtResource("1_bot")
+
+[node name="BodyCollider" type="CollisionShape3D" parent="."]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, 0.875, 0)
+shape = SubResource("CapsuleShape_bot")
+
+[node name="NavigationAgent3D" type="NavigationAgent3D" parent="."]
+path_desired_distance = 0.9
+target_desired_distance = 1.1
+avoidance_enabled = false
+
+[node name="VisualRoot" type="Node3D" parent="."]
+
+[node name="HitboxBody" type="Area3D" parent="."]
+collision_layer = 4
+collision_mask = 0
+
+[node name="Shape" type="CollisionShape3D" parent="HitboxBody"]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, 0.85, 0)
+shape = SubResource("BoxShape_bot_body")
+
+[node name="HitboxHead" type="Area3D" parent="."]
+collision_layer = 8
+collision_mask = 0
+
+[node name="Shape" type="CollisionShape3D" parent="HitboxHead"]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, 1.56, 0)
+shape = SubResource("SphereShape_bot_head")

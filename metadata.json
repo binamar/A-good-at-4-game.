@@ -1,0 +1,6 @@
+{
+  "name": "StrikePoint Mobile 5v5 — Godot 4 Project",
+  "description": "Offline 5v5 tactical bomb-defusal FPS built for Godot 4 Mobile renderer with multi-touch controls, low-poly models, and AI bots.",
+  "requestFramePermissions": [],
+  "majorCapabilities": ["MAJOR_CAPABILITY_SERVER_SIDE_GEMINI_API"]
+}
