@@ -6,20 +6,31 @@ extends Control
 @onready var sens_slider: HSlider = $CenterBox/Panel/VBox/SensSlider
 @onready var play_btn: Button = $CenterBox/Panel/VBox/PlayButton
 
-var _selected_team: int = GameManager.Team.CT
+var _selected_team: int = 1
 
 func _ready() -> void:
+	_selected_team = GameManager.Team.CT
 	sens_slider.value = GameManager.touch_sensitivity
 	_update_sens_label(GameManager.touch_sensitivity)
 	_select_team(GameManager.Team.CT)
 
-	ct_btn.pressed.connect(func(): _select_team(GameManager.Team.CT))
-	t_btn.pressed.connect(func(): _select_team(GameManager.Team.T))
-	sens_slider.value_changed.connect(func(v: float):
-		GameManager.touch_sensitivity = v
-		_update_sens_label(v)
-	)
-	play_btn.pressed.connect(func(): GameManager.start_new_match(_selected_team))
+	ct_btn.pressed.connect(_on_ct_pressed)
+	t_btn.pressed.connect(_on_t_pressed)
+	sens_slider.value_changed.connect(_on_sens_changed)
+	play_btn.pressed.connect(_on_play_pressed)
+
+func _on_ct_pressed() -> void:
+	_select_team(GameManager.Team.CT)
+
+func _on_t_pressed() -> void:
+	_select_team(GameManager.Team.T)
+
+func _on_sens_changed(v: float) -> void:
+	GameManager.touch_sensitivity = v
+	_update_sens_label(v)
+
+func _on_play_pressed() -> void:
+	GameManager.start_new_match(_selected_team)
 
 func _select_team(team_id: int) -> void:
 	_selected_team = team_id

@@ -21,7 +21,7 @@ const DEFUSE_TIME_KIT := 3.5
 @onready var hitbox_body: Area3D = $HitboxBody
 @onready var hitbox_head: Area3D = $HitboxHead
 
-var team: int = GameManager.Team.CT
+var team: int = 1
 var agent_name: String = "You"
 var is_alive: bool = true
 var hp: int = 100
@@ -49,11 +49,15 @@ var _exclude_rids: Array[RID] = []
 var arena: Node = null
 
 func _ready() -> void:
+	team = GameManager.Team.CT
 	hitbox_body.set_meta("owner_agent", self)
 	hitbox_body.set_meta("is_head", false)
 	hitbox_head.set_meta("owner_agent", self)
 	hitbox_head.set_meta("is_head", true)
-	_exclude_rids = [get_rid(), hitbox_body.get_rid(), hitbox_head.get_rid()]
+	_exclude_rids.clear()
+	_exclude_rids.append(get_rid())
+	_exclude_rids.append(hitbox_body.get_rid())
+	_exclude_rids.append(hitbox_head.get_rid())
 
 func reset_for_round(spawn_pos: Vector3, look_yaw: float, p_team: int, arena_ref: Node) -> void:
 	arena = arena_ref
@@ -76,10 +80,10 @@ func reset_for_round(spawn_pos: Vector3, look_yaw: float, p_team: int, arena_ref
 	is_firing_held = false
 	is_action_held = false
 	visible = true
-	hitbox_body.monitoring = true
-	hitbox_body.monitorable = true
-	hitbox_head.monitoring = true
-	hitbox_head.monitorable = true
+	hitbox_body.set_deferred("monitoring", true)
+	hitbox_body.set_deferred("monitorable", true)
+	hitbox_head.set_deferred("monitoring", true)
+	hitbox_head.set_deferred("monitorable", true)
 	camera.current = true
 
 	_weapons.clear()
@@ -303,7 +307,7 @@ func _try_fire() -> void:
 		var collider = hit["collider"]
 		if collider is Area3D and collider.has_meta("owner_agent"):
 			var target = collider.get_meta("owner_agent")
-			var is_head: bool = collider.get_meta("is_head", false)
+			var is_head := bool(collider.get_meta("is_head", false))
 			if target and target != self and target.has_method("take_damage") and target.team != team:
 				var dmg: float = stats["damage"] * (stats["head_mult"] if is_head else 1.0)
 				var killed: bool = target.take_damage(dmg, agent_name, team, stats["short"], is_head, true)
@@ -379,10 +383,10 @@ func take_damage(amount: float, killer_name: String, killer_team: int, weapon_sh
 	if hp <= 0:
 		is_alive = false
 		visible = false
-		hitbox_body.monitoring = false
-		hitbox_body.monitorable = false
-		hitbox_head.monitoring = false
-		hitbox_head.monitorable = false
+		hitbox_body.set_deferred("monitoring", false)
+		hitbox_body.set_deferred("monitorable", false)
+		hitbox_head.set_deferred("monitoring", false)
+		hitbox_head.set_deferred("monitorable", false)
 		GameManager.register_kill(killer_name, killer_team, agent_name, team, weapon_short, is_headshot, killer_is_player)
 		return true
 	return false

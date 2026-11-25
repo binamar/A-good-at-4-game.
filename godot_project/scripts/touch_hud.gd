@@ -1,5 +1,7 @@
 extends CanvasLayer
 
+const HUD_CANVAS_SCRIPT := preload("res://scripts/hud_canvas.gd")
+
 var _player: CharacterBody3D = null
 var _arena: Node = null
 var _agents: Array = []
@@ -47,6 +49,7 @@ var _buy_panel: PanelContainer
 var _pause_panel: PanelContainer
 var _match_over_panel: PanelContainer
 var _match_over_lbl: Label
+var _sens_lbl: Label
 
 var _hitmarker_timer: float = 0.0
 var _hitmarker_head: bool = false
@@ -75,8 +78,9 @@ func _build_hud() -> void:
 	_hud_root.mouse_filter = Control.MOUSE_FILTER_IGNORE
 	add_child(_hud_root)
 
-	_draw_layer = _HudCanvas.new()
-	_draw_layer.hud = self
+	_draw_layer = Control.new()
+	_draw_layer.set_script(HUD_CANVAS_SCRIPT)
+	_draw_layer.set("hud", self)
 	_draw_layer.set_anchors_preset(Control.PRESET_FULL_RECT)
 	_draw_layer.mouse_filter = Control.MOUSE_FILTER_IGNORE
 	_hud_root.add_child(_draw_layer)
@@ -192,23 +196,23 @@ func _build_hud() -> void:
 	_fire_btn.add_child(fire_lbl)
 
 	_ads_btn = _make_anchored_br_btn("AIM", Vector2(-248, -190), Vector2(82, 56))
-	_ads_btn.pressed.connect(func(): if _player: _player.toggle_ads())
+	_ads_btn.pressed.connect(_on_ads_pressed)
 	_hud_root.add_child(_ads_btn)
 
 	_jump_btn = _make_anchored_br_btn("JUMP", Vector2(-248, -120), Vector2(82, 54))
-	_jump_btn.pressed.connect(func(): if _player: _player.trigger_jump())
+	_jump_btn.pressed.connect(_on_jump_pressed)
 	_hud_root.add_child(_jump_btn)
 
 	_crouch_btn = _make_anchored_br_btn("CROUCH", Vector2(-340, -120), Vector2(82, 54))
-	_crouch_btn.pressed.connect(func(): if _player: _player.toggle_crouch())
+	_crouch_btn.pressed.connect(_on_crouch_pressed)
 	_hud_root.add_child(_crouch_btn)
 
 	_reload_btn = _make_anchored_br_btn("RELOAD", Vector2(-248, -260), Vector2(82, 52))
-	_reload_btn.pressed.connect(func(): if _player: _player.trigger_reload())
+	_reload_btn.pressed.connect(_on_reload_pressed)
 	_hud_root.add_child(_reload_btn)
 
 	_swap_btn = _make_anchored_br_btn("SWAP", Vector2(-146, -84), Vector2(114, 48))
-	_swap_btn.pressed.connect(func(): if _player: _player.cycle_weapon())
+	_swap_btn.pressed.connect(_on_swap_pressed)
 	_hud_root.add_child(_swap_btn)
 
 	# Contextual Plant / Defuse Hold Button
@@ -223,8 +227,8 @@ func _build_hud() -> void:
 	_action_btn.offset_bottom = 52
 	_action_btn.text = "HOLD TO PLANT C4"
 	_action_btn.visible = false
-	_action_btn.button_down.connect(func(): if _player: _player.is_action_held = true)
-	_action_btn.button_up.connect(func(): if _player: _player.is_action_held = false)
+	_action_btn.button_down.connect(_on_action_down)
+	_action_btn.button_up.connect(_on_action_up)
 	_hud_root.add_child(_action_btn)
 
 	_action_bar = ProgressBar.new()
@@ -287,31 +291,30 @@ func _build_buy_panel() -> void:
 	_buy_panel.add_child(vbox)
 
 	var title := Label.new()
-	title.text = "TACTICAL BUY MENU (FREEZE PHASE)"
+	title.text = "TACTICAL BUY MENU"
 	title.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
 	title.add_theme_font_size_override("font_size", 20)
 	vbox.add_child(title)
 
-	var items := [
-		["AK-47 Rifle ($2700)", func(): GameManager.try_buy_weapon(WeaponData.WeaponId.AK47_RIFLE)],
-		["M4A1-Carbine ($2900)", func(): GameManager.try_buy_weapon(WeaponData.WeaponId.M4_RIFLE)],
-		["MP5-SD SMG ($1500)", func(): GameManager.try_buy_weapon(WeaponData.WeaponId.MP5_SMG)],
-		["USP-Tactical Pistol ($200)", func(): GameManager.try_buy_weapon(WeaponData.WeaponId.USP_PISTOL)],
-		["Kevlar Vest Armor ($650)", func(): GameManager.try_buy_armor()],
-		["Defuse Kit - CT Only ($400)", func(): GameManager.try_buy_defuse_kit()],
-	]
-	for item in items:
-		var b := Button.new()
-		b.text = item[0]
-		b.custom_minimum_size = Vector2(0, 42)
-		b.pressed.connect(item[1])
-		vbox.add_child(b)
+	_add_buy_row(vbox, "AK-47 Rifle ($2700)", _on_buy_ak47)
+	_add_buy_row(vbox, "M4A1-Carbine ($2900)", _on_buy_m4)
+	_add_buy_row(vbox, "MP5-SD SMG ($1500)", _on_buy_mp5)
+	_add_buy_row(vbox, "USP-Tactical Pistol ($200)", _on_buy_usp)
+	_add_buy_row(vbox, "Kevlar Vest Armor ($650)", _on_buy_armor)
+	_add_buy_row(vbox, "Defuse Kit - CT Only ($400)", _on_buy_kit)
 
 	var close_b := Button.new()
 	close_b.text = "CLOSE"
 	close_b.custom_minimum_size = Vector2(0, 42)
-	close_b.pressed.connect(func(): _buy_panel.visible = false)
+	close_b.pressed.connect(_on_close_buy)
 	vbox.add_child(close_b)
+
+func _add_buy_row(parent: VBoxContainer, label_txt: String, cb: Callable) -> void:
+	var b := Button.new()
+	b.text = label_txt
+	b.custom_minimum_size = Vector2(0, 42)
+	b.pressed.connect(cb)
+	parent.add_child(b)
 
 func _build_pause_panel() -> void:
 	_pause_panel = PanelContainer.new()
@@ -336,31 +339,28 @@ func _build_pause_panel() -> void:
 	lbl.add_theme_font_size_override("font_size", 20)
 	vbox.add_child(lbl)
 
-	var sens_lbl := Label.new()
-	sens_lbl.text = "Touch Look Sensitivity: %.2f" % GameManager.touch_sensitivity
-	vbox.add_child(sens_lbl)
+	_sens_lbl = Label.new()
+	_sens_lbl.text = "Touch Look Sensitivity: %.2f" % GameManager.touch_sensitivity
+	vbox.add_child(_sens_lbl)
 
 	var slider := HSlider.new()
 	slider.min_value = 0.10
 	slider.max_value = 0.70
 	slider.step = 0.02
 	slider.value = GameManager.touch_sensitivity
-	slider.value_changed.connect(func(v: float):
-		GameManager.touch_sensitivity = v
-		sens_lbl.text = "Touch Look Sensitivity: %.2f" % v
-	)
+	slider.value_changed.connect(_on_sens_changed)
 	vbox.add_child(slider)
 
 	var resume_b := Button.new()
 	resume_b.text = "RESUME MATCH"
 	resume_b.custom_minimum_size = Vector2(0, 44)
-	resume_b.pressed.connect(func(): _pause_panel.visible = false)
+	resume_b.pressed.connect(_on_resume_pressed)
 	vbox.add_child(resume_b)
 
 	var quit_b := Button.new()
 	quit_b.text = "EXIT TO MAIN MENU"
 	quit_b.custom_minimum_size = Vector2(0, 44)
-	quit_b.pressed.connect(func(): GameManager.return_to_menu())
+	quit_b.pressed.connect(_on_quit_pressed)
 	vbox.add_child(quit_b)
 
 func _build_match_over_panel() -> void:
@@ -389,14 +389,80 @@ func _build_match_over_panel() -> void:
 	var replay_b := Button.new()
 	replay_b.text = "PLAY AGAIN"
 	replay_b.custom_minimum_size = Vector2(0, 46)
-	replay_b.pressed.connect(func(): GameManager.start_new_match(GameManager.player_team))
+	replay_b.pressed.connect(_on_replay_pressed)
 	vbox.add_child(replay_b)
 
 	var menu_b := Button.new()
 	menu_b.text = "MAIN MENU"
 	menu_b.custom_minimum_size = Vector2(0, 46)
-	menu_b.pressed.connect(func(): GameManager.return_to_menu())
+	menu_b.pressed.connect(_on_menu_pressed)
 	vbox.add_child(menu_b)
+
+func _on_ads_pressed() -> void:
+	if _player != null:
+		_player.toggle_ads()
+
+func _on_jump_pressed() -> void:
+	if _player != null:
+		_player.trigger_jump()
+
+func _on_crouch_pressed() -> void:
+	if _player != null:
+		_player.toggle_crouch()
+
+func _on_reload_pressed() -> void:
+	if _player != null:
+		_player.trigger_reload()
+
+func _on_swap_pressed() -> void:
+	if _player != null:
+		_player.cycle_weapon()
+
+func _on_action_down() -> void:
+	if _player != null:
+		_player.is_action_held = true
+
+func _on_action_up() -> void:
+	if _player != null:
+		_player.is_action_held = false
+
+func _on_buy_ak47() -> void:
+	GameManager.try_buy_weapon(WeaponData.WeaponId.AK47_RIFLE)
+
+func _on_buy_m4() -> void:
+	GameManager.try_buy_weapon(WeaponData.WeaponId.M4_RIFLE)
+
+func _on_buy_mp5() -> void:
+	GameManager.try_buy_weapon(WeaponData.WeaponId.MP5_SMG)
+
+func _on_buy_usp() -> void:
+	GameManager.try_buy_weapon(WeaponData.WeaponId.USP_PISTOL)
+
+func _on_buy_armor() -> void:
+	GameManager.try_buy_armor()
+
+func _on_buy_kit() -> void:
+	GameManager.try_buy_defuse_kit()
+
+func _on_close_buy() -> void:
+	_buy_panel.visible = false
+
+func _on_sens_changed(v: float) -> void:
+	GameManager.touch_sensitivity = v
+	if _sens_lbl != null:
+		_sens_lbl.text = "Touch Look Sensitivity: %.2f" % v
+
+func _on_resume_pressed() -> void:
+	_pause_panel.visible = false
+
+func _on_quit_pressed() -> void:
+	GameManager.return_to_menu()
+
+func _on_replay_pressed() -> void:
+	GameManager.start_new_match(GameManager.player_team)
+
+func _on_menu_pressed() -> void:
+	GameManager.return_to_menu()
 
 func _make_chip_label(txt: String, bg: Color, min_w: float) -> Label:
 	var lbl := Label.new()
@@ -433,19 +499,24 @@ func _make_anchored_br_btn(txt: String, offset_tl: Vector2, sz: Vector2) -> Butt
 	b.focus_mode = Control.FOCUS_NONE
 	return b
 
+func _to_canvas_pos(screen_pos: Vector2) -> Vector2:
+	if _hud_root == null:
+		return screen_pos
+	return _hud_root.get_global_transform_with_canvas().affine_inverse() * screen_pos
+
 func _input(event: InputEvent) -> void:
 	if _buy_panel.visible or _pause_panel.visible or _match_over_panel.visible or _player == null:
 		return
 
 	if event is InputEventScreenTouch:
-		var pos: Vector2 = event.position
+		var pos: Vector2 = _to_canvas_pos(event.position)
 		if event.pressed:
 			if _fire_btn.get_global_rect().has_point(pos):
 				_fire_finger = event.index
 				_player.set_fire_pressed(true)
 				return
-			# Ignore touches starting on other GUI buttons
-			for btn in [_ads_btn, _jump_btn, _crouch_btn, _reload_btn, _swap_btn, _buy_btn, _pause_btn, _action_btn]:
+			var btns := [_ads_btn, _jump_btn, _crouch_btn, _reload_btn, _swap_btn, _buy_btn, _pause_btn, _action_btn]
+			for btn in btns:
 				if btn.visible and btn.get_global_rect().has_point(pos):
 					return
 			var vp_w := _hud_root.get_viewport_rect().size.x
@@ -467,8 +538,9 @@ func _input(event: InputEvent) -> void:
 				_look_finger = -1
 
 	elif event is InputEventScreenDrag:
+		var drag_pos: Vector2 = _to_canvas_pos(event.position)
 		if event.index == _joy_finger:
-			var delta_v: Vector2 = event.position - _joy_origin
+			var delta_v: Vector2 = drag_pos - _joy_origin
 			if delta_v.length() > JOY_RADIUS:
 				delta_v = delta_v.normalized() * JOY_RADIUS
 			_joy_current = _joy_origin + delta_v
@@ -558,66 +630,3 @@ func _on_kill_feed_added(k_name: String, k_team: int, v_name: String, v_team: in
 func refresh_alive_counts(counts: Dictionary) -> void:
 	_ct_alive_lbl.text = "CT %d" % counts.get(GameManager.Team.CT, 0)
 	_t_alive_lbl.text = "%d T" % counts.get(GameManager.Team.T, 0)
-
-class _HudCanvas extends Control:
-	var hud: CanvasLayer
-
-	func _draw() -> void:
-		if hud == null:
-			return
-		var sz := get_viewport_rect().size
-		var center := sz * 0.5
-
-		# Dynamic Crosshair
-		var gap := 10.0
-		if hud._player and hud._player.is_alive:
-			gap = hud._player.get_current_spread_px()
-		var line_len := 8.0
-		var ch_col := Color(0.25, 0.98, 0.55, 0.92)
-		draw_line(center + Vector2(-gap - line_len, 0), center + Vector2(-gap, 0), ch_col, 2.0)
-		draw_line(center + Vector2(gap, 0), center + Vector2(gap + line_len, 0), ch_col, 2.0)
-		draw_line(center + Vector2(0, -gap - line_len), center + Vector2(0, -gap), ch_col, 2.0)
-		draw_line(center + Vector2(0, gap), center + Vector2(0, gap + line_len), ch_col, 2.0)
-
-		# Hitmarker X
-		if hud._hitmarker_timer > 0.0:
-			var hm_col := Color(1.0, 0.25, 0.22) if hud._hitmarker_head else Color(1.0, 1.0, 1.0)
-			for d in [Vector2(-1, -1), Vector2(1, -1), Vector2(-1, 1), Vector2(1, 1)]:
-				draw_line(center + d * 5.0, center + d * 13.0, hm_col, 2.2)
-
-		# Virtual Joystick Visual
-		var joy_c := hud._joy_origin if hud._joy_finger != -1 else Vector2(115.0, sz.y - 145.0)
-		var joy_k := hud._joy_current if hud._joy_finger != -1 else joy_c
-		draw_circle(joy_c, hud.JOY_RADIUS, Color(1, 1, 1, 0.12))
-		draw_arc(joy_c, hud.JOY_RADIUS, 0.0, TAU, 28, Color(1, 1, 1, 0.35), 2.0)
-		draw_circle(joy_k, 28.0, Color(1, 1, 1, 0.48))
-
-		# Tactical Radar Minimap (Top-Left)
-		var map_rect := Rect2(18, 16, 134, 134)
-		draw_rect(map_rect, Color(0.06, 0.09, 0.13, 0.78))
-		draw_rect(map_rect, Color(0.45, 0.55, 0.68, 0.5), false, 1.5)
-		var map_center := map_rect.get_center()
-		var scale_f := 2.1
-
-		# A & B site squares on radar
-		var a_pos := map_center + Vector2(18.0, -6.0) * scale_f
-		var b_pos := map_center + Vector2(-18.0, -6.0) * scale_f
-		draw_rect(Rect2(a_pos - Vector2(7, 7), Vector2(14, 14)), Color(0.95, 0.45, 0.25, 0.65))
-		draw_rect(Rect2(b_pos - Vector2(7, 7), Vector2(14, 14)), Color(0.28, 0.66, 0.96, 0.65))
-
-		# Bomb dot
-		if GameManager.bomb_planted:
-			var bp := map_center + Vector2(GameManager.bomb_position.x, GameManager.bomb_position.z) * scale_f
-			draw_circle(bp, 4.5, Color(1.0, 0.2, 0.2))
-
-		# Agents on radar (Player + Teammates)
-		if hud._player:
-			for ag in hud._agents:
-				if not is_instance_valid(ag) or not ag.is_alive:
-					continue
-				if ag.team != hud._player.team:
-					continue
-				var rp := map_center + Vector2(ag.global_position.x, ag.global_position.z) * scale_f
-				rp = rp.clamp(map_rect.position + Vector2(4, 4), map_rect.end - Vector2(4, 4))
-				var dot_col := Color(0.2, 1.0, 0.55) if ag == hud._player else Color(0.35, 0.72, 1.0)
-				draw_circle(rp, 4.0 if ag == hud._player else 3.0, dot_col)

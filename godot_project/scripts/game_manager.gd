@@ -23,13 +23,13 @@ enum MatchState {
 }
 
 const ROUNDS_TO_WIN := 7
-const FREEZE_DURATION := 6.0
+const FREEZE_DURATION := 3.5
 const ROUND_DURATION := 105.0
 const BOMB_DURATION := 40.0
 const ROUND_END_DURATION := 3.5
 
 var state: int = MatchState.MENU
-var player_team: int = Team.CT
+var player_team: int = 1
 var ct_score: int = 0
 var t_score: int = 0
 var current_round: int = 1
@@ -39,7 +39,7 @@ var player_money: int = 800
 var player_has_armor: bool = false
 var player_has_defuse_kit: bool = false
 var player_primary_weapon: int = -1
-var player_secondary_weapon: int = WeaponData.WeaponId.USP_PISTOL
+var player_secondary_weapon: int = 1
 
 var bomb_planted: bool = false
 var bomb_site_name: String = ""
@@ -129,7 +129,7 @@ func is_movement_frozen() -> bool:
 	return state == MatchState.FREEZE_BUY or state == MatchState.MATCH_OVER
 
 func can_buy() -> bool:
-	return state == MatchState.FREEZE_BUY
+	return state == MatchState.FREEZE_BUY or (state == MatchState.LIVE and phase_timer >= ROUND_DURATION - 8.0)
 
 func add_money(amount: int) -> void:
 	player_money = clampi(player_money + amount, 0, 16000)

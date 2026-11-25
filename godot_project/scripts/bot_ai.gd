@@ -11,15 +11,15 @@ const DEFUSE_TIME := 5.5
 @onready var hitbox_head: Area3D = $HitboxHead
 @onready var body_collider: CollisionShape3D = $BodyCollider
 
-var team: int = GameManager.Team.CT
+var team: int = 1
 var agent_name: String = "Bot"
 var is_alive: bool = true
 var hp: int = 100
-var weapon_id: int = WeaponData.WeaponId.AK47_RIFLE
+var weapon_id: int = 5
 
-var _arena: Node = null
+var _arena = null
 var _agents_ref: Array = []
-var _flash_mats: Array[ShaderMaterial] = []
+var _flash_mats: Array = []
 var _flash_timer: float = 0.0
 var _walk_phase: float = 0.0
 var _left_leg: MeshInstance3D
@@ -43,7 +43,10 @@ func _ready() -> void:
 	hitbox_body.set_meta("is_head", false)
 	hitbox_head.set_meta("owner_agent", self)
 	hitbox_head.set_meta("is_head", true)
-	_exclude_rids = [get_rid(), hitbox_body.get_rid(), hitbox_head.get_rid()]
+	_exclude_rids.clear()
+	_exclude_rids.append(get_rid())
+	_exclude_rids.append(hitbox_body.get_rid())
+	_exclude_rids.append(hitbox_head.get_rid())
 
 func _build_lowpoly_soldier() -> void:
 	var shader := ResourceLoader.load("res://shaders/hit_flash.gdshader") as Shader
@@ -59,7 +62,10 @@ func _build_lowpoly_soldier() -> void:
 	skin_mat.shader = shader
 	skin_mat.set_shader_parameter("albedo_color", Color(0.82, 0.66, 0.54))
 
-	_flash_mats = [armor_mat, helmet_mat, skin_mat]
+	_flash_mats.clear()
+	_flash_mats.append(armor_mat)
+	_flash_mats.append(helmet_mat)
+	_flash_mats.append(skin_mat)
 
 	# Torso
 	_make_part(Vector3(0.0, 1.05, 0.0), Vector3(0.46, 0.62, 0.26), armor_mat)
@@ -100,7 +106,7 @@ func _make_part(pos: Vector3, size: Vector3, mat: Material) -> MeshInstance3D:
 	visual_root.add_child(mi)
 	return mi
 
-func reset_for_round(spawn_pos: Vector3, p_team: int, p_name: String, lane: String, bomb_carrier: bool, arena_ref: Node, all_agents: Array) -> void:
+func reset_for_round(spawn_pos: Vector3, p_team: int, p_name: String, lane: String, bomb_carrier: bool, arena_ref, all_agents: Array) -> void:
 	team = p_team
 	agent_name = p_name
 	_assigned_lane = lane
@@ -122,16 +128,18 @@ func reset_for_round(spawn_pos: Vector3, p_team: int, p_name: String, lane: Stri
 	visible = true
 	visual_root.position = Vector3.ZERO
 	visual_root.rotation = Vector3.ZERO
-	body_collider.disabled = false
-	hitbox_body.monitoring = true
-	hitbox_body.monitorable = true
-	hitbox_head.monitoring = true
-	hitbox_head.monitorable = true
+	body_collider.set_deferred("disabled", false)
+	hitbox_body.set_deferred("monitoring", true)
+	hitbox_body.set_deferred("monitorable", true)
+	hitbox_head.set_deferred("monitoring", true)
+	hitbox_head.set_deferred("monitorable", true)
 
 	var team_col := Color(0.18, 0.36, 0.68) if team == GameManager.Team.CT else Color(0.68, 0.42, 0.18)
-	_flash_mats[0].set_shader_parameter("albedo_color", team_col)
+	var armor_mat: ShaderMaterial = _flash_mats[0]
+	armor_mat.set_shader_parameter("albedo_color", team_col)
 	_set_flash(0.0)
-	look_at(Vector3.ZERO, Vector3.UP)
+	if global_position.distance_squared_to(Vector3.ZERO) > 0.05:
+		look_at(Vector3(0.0, global_position.y, 0.0), Vector3.UP)
 	rotation.x = 0.0
 	rotation.z = 0.0
 
@@ -170,7 +178,6 @@ func _physics_process(delta: float) -> void:
 		_reaction_timer -= delta
 		if _reaction_timer <= 0.0:
 			_handle_combat_burst()
-		# Strafe slightly while shooting
 		var strafe := global_transform.basis.x * sin(Time.get_ticks_msec() * 0.003 + float(get_instance_id() % 7)) * 1.4
 		velocity.x = strafe.x
 		velocity.z = strafe.z
@@ -203,7 +210,9 @@ func _update_target_and_destination() -> void:
 	nav_agent.target_position = dest
 
 func _handle_navigation_and_objective(delta: float) -> void:
-	# Bomb plant / defuse logic
+	if _arena == null:
+		return
+
 	if team == GameManager.Team.T and _is_bomb_carrier and not GameManager.bomb_planted and GameManager.state == GameManager.MatchState.LIVE:
 		var site: String = _arena.get_site_at_position(global_position)
 		if site != "":
@@ -270,13 +279,13 @@ func _fire_at_target(target: Node3D) -> void:
 		var col = hit["collider"]
 		if col is Area3D and col.has_meta("owner_agent"):
 			var victim = col.get_meta("owner_agent")
-			if victim and victim != self and victim.team != team and victim.has_method("take_damage"):
-				var is_head: bool = col.get_meta("is_head", false)
+			if victim != null and victim != self and victim.team != team and victim.has_method("take_damage"):
+				var is_head := bool(col.get_meta("is_head", false))
 				var dmg := 18.0 * (2.2 if is_head else 1.0)
 				var w_short := "M4A1" if team == GameManager.Team.CT else "AK-47"
 				victim.take_damage(dmg, agent_name, team, w_short, is_head, false)
 
-	if _arena and _arena.has_method("spawn_tracer"):
+	if _arena != null and _arena.has_method("spawn_tracer"):
 		_arena.spawn_tracer(_gun_muzzle.global_position, visual_end)
 
 func _has_line_of_sight(target: Node3D) -> bool:
@@ -313,11 +322,11 @@ func take_damage(amount: float, killer_name: String, killer_team: int, weapon_sh
 	_flash_timer = 0.09
 	if hp <= 0:
 		is_alive = false
-		hitbox_body.monitoring = false
-		hitbox_body.monitorable = false
-		hitbox_head.monitoring = false
-		hitbox_head.monitorable = false
-		body_collider.disabled = true
+		hitbox_body.set_deferred("monitoring", false)
+		hitbox_body.set_deferred("monitorable", false)
+		hitbox_head.set_deferred("monitoring", false)
+		hitbox_head.set_deferred("monitorable", false)
+		body_collider.set_deferred("disabled", true)
 		visual_root.rotation.x = deg_to_rad(86.0)
 		visual_root.position.y = -0.35
 		GameManager.register_kill(killer_name, killer_team, agent_name, team, weapon_short, is_headshot, killer_is_player)
@@ -326,4 +335,5 @@ func take_damage(amount: float, killer_name: String, killer_team: int, weapon_sh
 
 func _set_flash(val: float) -> void:
 	for m in _flash_mats:
-		m.set_shader_parameter("flash_amount", val)
+		var sm: ShaderMaterial = m
+		sm.set_shader_parameter("flash_amount", val)
