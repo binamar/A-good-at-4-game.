@@ -11,8 +11,8 @@ Offline Counter-Strike-inspired **5v5 tactical bomb-defusal FPS** built from scr
 5. Press **Play (▶)** to launch `scenes/main.tscn`.
 
 ## Features Included
-- **5v5 Offline Competitive Match:** Play as **Counter-Terrorist (CT)** or **Terrorist (T)** with 9 tactical AI operators (`NavigationAgent3D`) that patrol lanes, peek angles, crouch in gunfights, plant C4 at **Site A** or **Site B**, and rotate to defuse.
-- **Expanded Map (`Sandstone Yard` — 78m × 66m):** 3-lane layout with **Site A Heaven** & **Site B Balcony** elevated platforms, walkable ramps, central monument plinth, pergola arches, sandbag bunkers, and 512px PBR albedo + normal-map textures.
-- **Articulated Operator Rigs & Expressive Faces:** Multi-joint character rigs with sculpted faces, glowing tactical visors, respirator masks, NVG helmets, chest plate carriers, and animated limb/death poses.
-- **Multi-Material Viewmodels & First-Person Arms:** Camo-sleeved arms and tactical gloves holding detailed AK-47, M4A1 (red-dot + suppressor), MP5-SD, USP-Tactical (tritium sights), Glock-18C, Combat Knife, and throwable **HE Frag Grenade**, with live muzzle-flash lighting.
-- **Mobile Touch Controls & Scoreboard:** Multi-touch virtual joystick, drag-while-firing recoil control, direct `[RIFLE] [PISTOL] [KNIFE] [FRAG]` slot bar, live 5v5 K/D scoreboard, damage vignette, multikill callouts, and procedural `AudioStreamWAV` SFX.
+- **Thermal & 60 FPS Optimization:** Internal 3D render scale locked near 720p (`0.67`) with a `60 FPS` cap, single-sample UV-tiled map geometry (no heavy triplanar shader overhead), and sculpted low-draw-call `.obj` meshes.
+- **4 Distinct Sculpted Operator Classes (5v5):** Assault, Heavy Breacher, Recon Ghost, and Tech Specialist — built from smooth beveled `.obj` helmets, sculpted heads/masks, curved visors, organic limbs, and distinct CT/T color schemes.
+- **Dynamic Shadows & Zone Lighting:** Deep ambient contrast with PSSM directional shadows plus electric blue, deep purple, and golden-yellow zone light pools across *Sandstone Yard* (78m × 66m).
+- **Sculpted First-Person Weapons & Arms:** Beveled `.obj` AK-47 (curved mag + walnut furniture), M4A1 (quad-rail + suppressor), MP5-SD, USP-Tactical, Glock-18C, Combat Knife, and throwable **HE Frag Grenade** held by tapered tactical sleeves and gloves.
+- **Mobile Touch Controls & Scoreboard:** Multi-touch virtual joystick, drag-while-firing recoil control, direct `[RIFLE] [PISTOL] [KNIFE] [FRAG]` slot bar, live 5v5 K/D scoreboard, multikill callouts, and procedural `AudioStreamWAV` SFX.

@@ -12,7 +12,6 @@ var _knife_node: Node3D
 var _grenade_node: Node3D
 var _arms_node: Node3D
 
-var _ak_bolt: MeshInstance3D
 var _pistol_slide: MeshInstance3D
 var _glock_slide: MeshInstance3D
 var _muzzle_light: OmniLight3D
@@ -31,12 +30,12 @@ var _is_ads := false
 var _current_id := 1
 
 func _ready() -> void:
-	_build_detailed_viewmodels()
+	_build_sculpted_viewmodels()
 	muzzle_flash.visible = false
 	_muzzle_light = OmniLight3D.new()
 	_muzzle_light.light_color = Color(1.0, 0.78, 0.40)
-	_muzzle_light.light_energy = 2.4
-	_muzzle_light.omni_range = 4.2
+	_muzzle_light.light_energy = 2.2
+	_muzzle_light.omni_range = 4.0
 	_muzzle_light.shadow_enabled = false
 	_muzzle_light.visible = false
 	muzzle_flash.add_child(_muzzle_light)
@@ -51,11 +50,17 @@ func _make_mat(col: Color, rough: float, metal: float, unshaded: bool = false) -
 		m.shading_mode = BaseMaterial3D.SHADING_MODE_UNSHADED
 	return m
 
-func _add_part(parent: Node3D, pos: Vector3, sz: Vector3, mat: Material, rot_deg: Vector3 = Vector3.ZERO) -> MeshInstance3D:
+func _load_mesh(path: String) -> Mesh:
+	var m := ResourceLoader.load(path) as Mesh
+	if m != null:
+		return m
+	var fallback := BoxMesh.new()
+	fallback.size = Vector3(0.05, 0.05, 0.2)
+	return fallback
+
+func _add_mesh(parent: Node3D, mesh_res: Mesh, pos: Vector3, mat: Material, rot_deg: Vector3 = Vector3.ZERO) -> MeshInstance3D:
 	var mi := MeshInstance3D.new()
-	var bm := BoxMesh.new()
-	bm.size = sz
-	mi.mesh = bm
+	mi.mesh = mesh_res
 	mi.position = pos
 	mi.rotation_degrees = rot_deg
 	mi.material_override = mat
@@ -63,124 +68,96 @@ func _add_part(parent: Node3D, pos: Vector3, sz: Vector3, mat: Material, rot_deg
 	parent.add_child(mi)
 	return mi
 
-func _add_cyl(parent: Node3D, pos: Vector3, r: float, h: float, mat: Material, rot_deg: Vector3 = Vector3(90.0, 0.0, 0.0)) -> MeshInstance3D:
+func _add_sight_pip(parent: Node3D, pos: Vector3, sz: Vector3, mat: Material) -> void:
 	var mi := MeshInstance3D.new()
-	var cm := CylinderMesh.new()
-	cm.top_radius = r
-	cm.bottom_radius = r
-	cm.height = h
-	cm.radial_segments = 10
-	mi.mesh = cm
+	var sm := SphereMesh.new()
+	sm.radius = sz.x * 0.5
+	sm.height = sz.y
+	sm.radial_segments = 6
+	sm.rings = 4
+	mi.mesh = sm
 	mi.position = pos
-	mi.rotation_degrees = rot_deg
 	mi.material_override = mat
 	mi.cast_shadow = GeometryInstance3D.SHADOW_CASTING_SETTING_OFF
 	parent.add_child(mi)
-	return mi
 
-func _build_detailed_viewmodels() -> void:
-	var steel_dark := _make_mat(Color(0.14, 0.16, 0.20), 0.42, 0.75)
-	var gunmetal := _make_mat(Color(0.24, 0.27, 0.32), 0.35, 0.80)
-	var polymer := _make_mat(Color(0.09, 0.10, 0.12), 0.78, 0.08)
-	var walnut := _make_mat(Color(0.46, 0.24, 0.12), 0.70, 0.05)
-	var chrome := _make_mat(Color(0.76, 0.80, 0.86), 0.20, 0.92)
+func _build_sculpted_viewmodels() -> void:
+	var steel_dark := _make_mat(Color(0.14, 0.16, 0.20), 0.40, 0.78)
+	var gunmetal := _make_mat(Color(0.25, 0.28, 0.33), 0.34, 0.82)
+	var polymer := _make_mat(Color(0.09, 0.10, 0.12), 0.76, 0.10)
+	var walnut := _make_mat(Color(0.46, 0.24, 0.12), 0.68, 0.05)
+	var chrome := _make_mat(Color(0.78, 0.82, 0.88), 0.18, 0.92)
 	var tritium := _make_mat(Color(0.25, 1.0, 0.45), 0.2, 0.0, true)
-	var red_dot := _make_mat(Color(1.0, 0.22, 0.18), 0.2, 0.0, true)
-	var olive := _make_mat(Color(0.24, 0.32, 0.20), 0.72, 0.15)
+	var red_dot := _make_mat(Color(1.0, 0.24, 0.18), 0.2, 0.0, true)
+	var olive := _make_mat(Color(0.24, 0.34, 0.20), 0.70, 0.18)
+
 	var camo_tex := ResourceLoader.load("res://assets/textures/tactical_camo.png") as Texture2D
+	var camo_n := ResourceLoader.load("res://assets/textures/tactical_camo_normal.png") as Texture2D
 	var sleeve_mat := StandardMaterial3D.new()
 	if camo_tex != null:
 		sleeve_mat.albedo_texture = camo_tex
+	if camo_n != null:
+		sleeve_mat.normal_enabled = true
+		sleeve_mat.normal_texture = camo_n
 	sleeve_mat.albedo_color = Color(0.32, 0.38, 0.46)
-	sleeve_mat.roughness = 0.88
-	var glove_mat := _make_mat(Color(0.11, 0.12, 0.14), 0.82, 0.05)
+	sleeve_mat.roughness = 0.86
+	var glove_mat := _make_mat(Color(0.11, 0.12, 0.14), 0.80, 0.06)
 
-	# First-person tactical arms & gloves
+	var sleeve_mesh := _load_mesh("res://assets/models/fp_arm_sleeve.obj")
+	var glove_mesh := _load_mesh("res://assets/models/fp_glove.obj")
+
+	# Sculpted First-Person Tactical Arms & Gloves
 	_arms_node = Node3D.new()
 	gun_anchor.add_child(_arms_node)
-	# Right forearm + glove
-	_add_part(_arms_node, Vector3(0.06, -0.16, 0.22), Vector3(0.085, 0.085, 0.30), sleeve_mat, Vector3(24, -12, 0))
-	_add_part(_arms_node, Vector3(0.005, -0.09, 0.07), Vector3(0.068, 0.072, 0.095), glove_mat, Vector3(12, 0, 0))
-	# Left forearm + support glove
-	_add_part(_arms_node, Vector3(-0.18, -0.14, -0.04), Vector3(0.082, 0.082, 0.30), sleeve_mat, Vector3(18, 34, 0))
-	_add_part(_arms_node, Vector3(-0.04, -0.06, -0.18), Vector3(0.068, 0.065, 0.09), glove_mat, Vector3(0, 18, 0))
+	_add_mesh(_arms_node, sleeve_mesh, Vector3(0.055, -0.15, 0.22), sleeve_mat, Vector3(22, -12, 0))
+	_add_mesh(_arms_node, glove_mesh, Vector3(0.005, -0.085, 0.07), glove_mat, Vector3(10, 0, 0))
+	_add_mesh(_arms_node, sleeve_mesh, Vector3(-0.17, -0.13, -0.04), sleeve_mat, Vector3(16, 32, 0))
+	_add_mesh(_arms_node, glove_mesh, Vector3(-0.035, -0.06, -0.17), glove_mat, Vector3(0, 18, 0))
 
-	# 1. AK-47 (Stamped steel, walnut furniture, curved mag, reciprocating bolt)
+	# 1. AK-47 (Sculpted steel receiver + curved banana mag + walnut furniture)
 	_ak_node = Node3D.new()
 	gun_anchor.add_child(_ak_node)
-	_add_part(_ak_node, Vector3(0, 0.0, 0.0), Vector3(0.054, 0.078, 0.33), steel_dark)
-	_add_part(_ak_node, Vector3(0, 0.025, 0.0), Vector3(0.048, 0.036, 0.30), gunmetal)
-	_ak_bolt = _add_part(_ak_node, Vector3(0.028, 0.018, -0.02), Vector3(0.014, 0.018, 0.075), chrome)
-	_add_part(_ak_node, Vector3(0, -0.005, -0.25), Vector3(0.048, 0.060, 0.20), walnut) # handguard
-	_add_cyl(_ak_node, Vector3(0, 0.022, -0.37), 0.011, 0.44, steel_dark) # barrel
-	_add_cyl(_ak_node, Vector3(0, 0.042, -0.29), 0.012, 0.22, steel_dark) # gas tube
-	_add_part(_ak_node, Vector3(0, 0.052, -0.49), Vector3(0.012, 0.032, 0.022), steel_dark) # front sight
-	_add_part(_ak_node, Vector3(0, 0.052, -0.08), Vector3(0.022, 0.016, 0.03), steel_dark) # rear sight
-	_add_part(_ak_node, Vector3(0, -0.022, 0.26), Vector3(0.042, 0.088, 0.22), walnut, Vector3(-6, 0, 0)) # stock
-	_add_part(_ak_node, Vector3(0, -0.095, 0.075), Vector3(0.036, 0.11, 0.052), walnut, Vector3(16, 0, 0)) # grip
-	_add_part(_ak_node, Vector3(0, -0.10, -0.09), Vector3(0.032, 0.13, 0.062), steel_dark, Vector3(-12, 0, 0))
-	_add_part(_ak_node, Vector3(0, -0.18, -0.115), Vector3(0.031, 0.09, 0.058), steel_dark, Vector3(-26, 0, 0))
+	_add_mesh(_ak_node, _load_mesh("res://assets/models/vm_ak_body.obj"), Vector3.ZERO, steel_dark)
+	_add_mesh(_ak_node, _load_mesh("res://assets/models/vm_ak_furniture.obj"), Vector3.ZERO, walnut)
 
-	# 2. M4A1-Carbine (Polymer/steel, quad-rail, holographic red-dot, suppressor)
+	# 2. M4A1-Carbine (Sculpted receiver, round quad-rail, suppressor, glowing holographic dot)
 	_m4_node = Node3D.new()
 	gun_anchor.add_child(_m4_node)
-	_add_part(_m4_node, Vector3(0, 0.0, 0.0), Vector3(0.054, 0.076, 0.30), polymer)
-	_add_part(_m4_node, Vector3(0, 0.042, -0.02), Vector3(0.034, 0.014, 0.34), gunmetal) # top rail
-	# Holographic sight + glowing red dot
-	_add_part(_m4_node, Vector3(0, 0.072, -0.01), Vector3(0.040, 0.042, 0.075), steel_dark)
-	_add_part(_m4_node, Vector3(0, 0.075, -0.01), Vector3(0.008, 0.008, 0.008), red_dot)
-	_add_part(_m4_node, Vector3(0, 0.012, -0.24), Vector3(0.050, 0.054, 0.20), gunmetal) # quad-rail
-	_add_cyl(_m4_node, Vector3(0, 0.018, -0.45), 0.020, 0.24, steel_dark) # suppressor
-	_add_cyl(_m4_node, Vector3(0, 0.010, 0.24), 0.022, 0.20, polymer) # buffer tube
-	_add_part(_m4_node, Vector3(0, -0.018, 0.28), Vector3(0.042, 0.10, 0.14), polymer) # buttstock
-	_add_part(_m4_node, Vector3(0, -0.095, 0.07), Vector3(0.036, 0.11, 0.050), polymer, Vector3(18, 0, 0))
-	_add_part(_m4_node, Vector3(0, -0.11, -0.08), Vector3(0.032, 0.16, 0.064), gunmetal, Vector3(-5, 0, 0))
+	_add_mesh(_m4_node, _load_mesh("res://assets/models/vm_m4_body.obj"), Vector3.ZERO, gunmetal)
+	_add_sight_pip(_m4_node, Vector3(0, 0.074, -0.01), Vector3(0.009, 0.009, 0.009), red_dot)
 
-	# 3. MP5-SD (Compact SMG, ribbed integral suppressor, curved mag)
+	# 3. MP5-SD (Sculpted SMG + cylindrical suppressor + curved mag)
 	_mp5_node = Node3D.new()
 	gun_anchor.add_child(_mp5_node)
-	_add_part(_mp5_node, Vector3(0, 0.01, -0.02), Vector3(0.048, 0.068, 0.28), polymer)
-	_add_cyl(_mp5_node, Vector3(0, 0.018, -0.27), 0.024, 0.25, steel_dark) # SD suppressor
-	_add_part(_mp5_node, Vector3(0, 0.056, -0.12), Vector3(0.018, 0.022, 0.022), steel_dark)
-	_add_part(_mp5_node, Vector3(0, 0.056, 0.06), Vector3(0.022, 0.022, 0.024), steel_dark)
-	_add_part(_mp5_node, Vector3(0, 0.01, 0.21), Vector3(0.036, 0.068, 0.18), polymer)
-	_add_part(_mp5_node, Vector3(0, -0.085, 0.06), Vector3(0.034, 0.10, 0.046), polymer, Vector3(16, 0, 0))
-	_add_part(_mp5_node, Vector3(0, -0.11, -0.07), Vector3(0.026, 0.15, 0.042), steel_dark, Vector3(-16, 0, 0))
+	_add_mesh(_mp5_node, _load_mesh("res://assets/models/vm_mp5_body.obj"), Vector3.ZERO, steel_dark)
 
-	# 4. USP-Tactical (Two-tone slide, suppressor, green tritium sights)
+	# 4. USP-Tactical (Beveled reciprocating slide + contoured polymer frame + suppressor + tritium sights)
 	_usp_node = Node3D.new()
 	gun_anchor.add_child(_usp_node)
-	_pistol_slide = _add_part(_usp_node, Vector3(0, 0.032, -0.04), Vector3(0.036, 0.038, 0.22), gunmetal)
-	_add_part(_usp_node, Vector3(0, 0.054, -0.13), Vector3(0.007, 0.010, 0.010), tritium)
-	_add_part(_usp_node, Vector3(-0.010, 0.054, 0.055), Vector3(0.006, 0.010, 0.008), tritium)
-	_add_part(_usp_node, Vector3(0.010, 0.054, 0.055), Vector3(0.006, 0.010, 0.008), tritium)
-	_add_part(_usp_node, Vector3(0, 0.0, -0.02), Vector3(0.033, 0.028, 0.19), polymer)
-	_add_part(_usp_node, Vector3(0, -0.068, 0.048), Vector3(0.032, 0.11, 0.048), polymer, Vector3(14, 0, 0))
-	_add_cyl(_usp_node, Vector3(0, 0.026, -0.22), 0.017, 0.16, steel_dark)
+	_pistol_slide = _add_mesh(_usp_node, _load_mesh("res://assets/models/vm_usp_slide.obj"), Vector3(0, 0.032, -0.04), gunmetal)
+	_add_mesh(_usp_node, _load_mesh("res://assets/models/vm_usp_frame.obj"), Vector3.ZERO, polymer)
+	_add_sight_pip(_usp_node, Vector3(0, 0.055, -0.13), Vector3(0.007, 0.007, 0.007), tritium)
+	_add_sight_pip(_usp_node, Vector3(-0.010, 0.055, 0.055), Vector3(0.006, 0.006, 0.006), tritium)
+	_add_sight_pip(_usp_node, Vector3(0.010, 0.055, 0.055), Vector3(0.006, 0.006, 0.006), tritium)
 
-	# 5. Glock-18C (Compact vented slide, extended mag)
+	# 5. Glock-18C (Chamfered slide + angled grip + tritium sight)
 	_glock_node = Node3D.new()
 	gun_anchor.add_child(_glock_node)
-	_glock_slide = _add_part(_glock_node, Vector3(0, 0.030, -0.04), Vector3(0.034, 0.034, 0.20), steel_dark)
-	_add_part(_glock_node, Vector3(0, 0.050, -0.12), Vector3(0.007, 0.008, 0.008), tritium)
-	_add_part(_glock_node, Vector3(0, 0.0, -0.02), Vector3(0.032, 0.026, 0.18), polymer)
-	_add_part(_glock_node, Vector3(0, -0.075, 0.046), Vector3(0.031, 0.125, 0.046), polymer, Vector3(15, 0, 0))
+	_glock_slide = _add_mesh(_glock_node, _load_mesh("res://assets/models/vm_glock_slide.obj"), Vector3(0, 0.030, -0.04), steel_dark)
+	_add_mesh(_glock_node, _load_mesh("res://assets/models/vm_glock_frame.obj"), Vector3.ZERO, polymer)
+	_add_sight_pip(_glock_node, Vector3(0, 0.052, -0.12), Vector3(0.007, 0.007, 0.007), tritium)
 
 	# 6. Tactical Combat Knife
 	_knife_node = Node3D.new()
 	_knife_node.rotation_degrees = Vector3(-14.0, 20.0, 0.0)
 	gun_anchor.add_child(_knife_node)
-	_add_part(_knife_node, Vector3(0, 0, 0.02), Vector3(0.030, 0.034, 0.13), walnut)
-	_add_part(_knife_node, Vector3(0, 0.004, -0.05), Vector3(0.048, 0.014, 0.016), steel_dark)
-	_add_part(_knife_node, Vector3(0, 0.008, -0.155), Vector3(0.010, 0.034, 0.20), chrome)
-	_add_part(_knife_node, Vector3(0, 0.022, -0.24), Vector3(0.008, 0.016, 0.045), chrome, Vector3(24, 0, 0))
+	_add_mesh(_knife_node, _load_mesh("res://assets/models/vm_knife_handle.obj"), Vector3.ZERO, walnut)
+	_add_mesh(_knife_node, _load_mesh("res://assets/models/vm_knife_blade.obj"), Vector3.ZERO, chrome)
 
 	# 7. HE Frag Grenade
 	_grenade_node = Node3D.new()
 	gun_anchor.add_child(_grenade_node)
-	_add_cyl(_grenade_node, Vector3(0, -0.02, -0.06), 0.042, 0.095, olive, Vector3.ZERO)
-	_add_part(_grenade_node, Vector3(0, 0.042, -0.06), Vector3(0.024, 0.026, 0.024), gunmetal)
-	_add_part(_grenade_node, Vector3(0.022, 0.012, -0.06), Vector3(0.010, 0.068, 0.014), steel_dark, Vector3(0, 0, -10))
+	_add_mesh(_grenade_node, _load_mesh("res://assets/models/vm_grenade_body.obj"), Vector3.ZERO, olive)
 
 func equip_weapon(weapon_id: int) -> void:
 	_current_id = weapon_id
@@ -227,8 +204,6 @@ func update_motion(delta: float, move_speed_ratio: float, on_floor: bool) -> voi
 	_slide_kick = lerpf(_slide_kick, 0.0, clampf(delta * 22.0, 0.0, 1.0))
 	_reload_angle = lerpf(_reload_angle, -0.68 if _is_reloading else 0.0, clampf(delta * 10.0, 0.0, 1.0))
 
-	if _ak_bolt != null:
-		_ak_bolt.position.z = -0.02 + _slide_kick
 	if _pistol_slide != null:
 		_pistol_slide.position.z = -0.04 + _slide_kick * 0.7
 	if _glock_slide != null:

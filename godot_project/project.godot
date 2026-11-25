@@ -10,6 +10,7 @@ config/description="Offline tactical 5v5 bomb defusal FPS built for mobile touch
 run/main_scene="res://scenes/main.tscn"
 config/features=PackedStringArray("4.3", "Mobile")
 config/icon="res://icon.svg"
+run/max_fps=60
 
 [autoload]
 
@@ -42,3 +43,5 @@ renderer/rendering_method.mobile="mobile"
 textures/vram_compression/import_etc2_astc=true
 lights_and_shadows/directional_shadow/size=1024
 anti_aliasing/quality/msaa_3d=0
+scaling_3d/mode=0
+scaling_3d/scale=0.67

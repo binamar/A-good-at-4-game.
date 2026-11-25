@@ -191,9 +191,9 @@ export default function App() {
                   Offline 5v5 tactical FPS built for Android touch and 60 FPS performance.
                 </h1>
                 <p className="text-slate-300 text-base leading-relaxed max-w-2xl">
-                  Generated inside <code className="text-amber-300 text-sm">/godot_project</code> with 512px PBR albedo and
-                  normal-map textures, articulated tactical operators, first-person camo arms, HE frag grenades,
-                  NavigationAgent3D bot routing, and multi-touch drag-while-firing recoil controls.
+                  Generated inside <code className="text-amber-300 text-sm">/godot_project</code> with sculpted Wavefront
+                  character and weapon meshes across 4 operator archetypes, 512px PBR textures, purple/blue/yellow
+                  zone lighting, 720p 3D scaling capped at 60 FPS, and multi-touch drag-while-firing controls.
                 </p>
               </div>
 
@@ -211,20 +211,20 @@ export default function App() {
 
             <section className="grid grid-cols-2 sm:grid-cols-4 gap-4">
               <div className="bg-slate-900 border border-slate-800 rounded-xl p-4">
-                <p className="text-xs text-slate-400">Renderer</p>
-                <p className="font-display text-lg font-semibold text-slate-100 mt-1">Mobile / PBR Normals</p>
+                <p className="text-xs text-slate-400">Render Target</p>
+                <p className="font-display text-lg font-semibold text-slate-100 mt-1 tabular-nums">720p Scale · 60 FPS</p>
               </div>
               <div className="bg-slate-900 border border-slate-800 rounded-xl p-4">
-                <p className="text-xs text-slate-400">Match Format</p>
-                <p className="font-display text-lg font-semibold text-slate-100 mt-1 tabular-nums">5v5 · First to 7</p>
+                <p className="text-xs text-slate-400">Operator Archetypes</p>
+                <p className="font-display text-lg font-semibold text-slate-100 mt-1 tabular-nums">4 Classes · 5v5</p>
               </div>
               <div className="bg-slate-900 border border-slate-800 rounded-xl p-4">
                 <p className="text-xs text-slate-400">Arena Footprint</p>
                 <p className="font-display text-lg font-semibold text-slate-100 mt-1 tabular-nums">78m × 66m</p>
               </div>
               <div className="bg-slate-900 border border-slate-800 rounded-xl p-4">
-                <p className="text-xs text-slate-400">Audio Footprint</p>
-                <p className="font-display text-lg font-semibold text-slate-100 mt-1">Procedural WAV</p>
+                <p className="text-xs text-slate-400">Lighting</p>
+                <p className="font-display text-lg font-semibold text-slate-100 mt-1">PSSM + Zone Lights</p>
               </div>
             </section>
 
@@ -335,9 +335,9 @@ export default function App() {
                   <Shield className="w-4 h-4 text-sky-400" />
                   Mobile Optimization Rules Applied
                 </h4>
-                <p>Triplanar 512px PBR albedo and normal maps share 7 material instances across the 78m × 66m arena.</p>
-                <p>16-item tracer pool and 20-item impact pool eliminate runtime mesh allocation during gunfights.</p>
-                <p>Synchronous 45°-slope NavigationMesh bake routes all 9 AI operators across ramps, Heaven, and crates.</p>
+                <p>Single-sample UV-tiled BoxMeshes eliminate 3× triplanar fragment texture overhead on mobile GPUs.</p>
+                <p>0.67× internal 3D render scaling (~720p) with 60 FPS cap keeps thermals low while keeping 2D HUD sharp.</p>
+                <p>8 non-shadowed purple, blue, and golden-yellow zone lights pair with 2-split PSSM directional shadows.</p>
               </div>
             </div>
           </div>

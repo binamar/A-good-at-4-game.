@@ -49,7 +49,7 @@ func setup_round_entities() -> void:
 		var spawn_pos: Vector3 = p_spawns[s]
 		var b_name: String = CT_NAMES[s] if p_team == GameManager.Team.CT else T_NAMES[s]
 		var is_carrier := (p_team == GameManager.Team.T and s == 1)
-		bot.reset_for_round(spawn_pos, p_team, b_name, LANES[s], is_carrier, arena, all_agents)
+		bot.reset_for_round(spawn_pos, p_team, b_name, LANES[s], is_carrier, arena, all_agents, s % 4)
 		GameManager.register_agent_scoreboard(b_name, p_team)
 
 	# Spawn 5 enemy bots
@@ -62,7 +62,7 @@ func setup_round_entities() -> void:
 		bot_i += 1
 		var b_name: String = CT_NAMES[s] if e_team == GameManager.Team.CT else T_NAMES[s]
 		var is_carrier := (e_team == GameManager.Team.T and s == 2)
-		bot.reset_for_round(e_spawns[s], e_team, b_name, LANES[s], is_carrier, arena, all_agents)
+		bot.reset_for_round(e_spawns[s], e_team, b_name, LANES[s], is_carrier, arena, all_agents, (s + 1) % 4)
 		GameManager.register_agent_scoreboard(b_name, e_team)
 
 	hud.refresh_alive_counts(get_alive_counts())

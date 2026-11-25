@@ -60,6 +60,7 @@ var _agents_ref: Array = []
 func _ready() -> void:
 	_prepare_materials_and_meshes()
 	_build_sandstone_arena()
+	_add_zone_lighting()
 	_setup_navmesh()
 	_setup_fx_pools()
 
@@ -105,8 +106,6 @@ func _prepare_materials_and_meshes() -> void:
 		_mat_sandbag.normal_texture = camo_n
 	_mat_sandbag.albedo_color = Color(0.76, 0.68, 0.52)
 	_mat_sandbag.roughness = 0.94
-	_mat_sandbag.uv1_triplanar = true
-	_mat_sandbag.uv1_scale = Vector3.ONE * 0.8
 
 	_crate_mesh = ResourceLoader.load("res://assets/models/crate_tactical.obj") as Mesh
 	if _crate_mesh == null:
@@ -122,7 +121,7 @@ func _prepare_materials_and_meshes() -> void:
 		c.height = 1.1
 		_barrel_mesh = c
 
-func _make_pbr_mat(tex_path: String, norm_path: String, tint: Color, tri_scale: float, rough: float, norm_scale: float) -> StandardMaterial3D:
+func _make_pbr_mat(tex_path: String, norm_path: String, tint: Color, _uv_scale: float, rough: float, norm_scale: float) -> StandardMaterial3D:
 	var mat := StandardMaterial3D.new()
 	var tex := ResourceLoader.load(tex_path) as Texture2D
 	if tex != null:
@@ -135,8 +134,6 @@ func _make_pbr_mat(tex_path: String, norm_path: String, tint: Color, tri_scale: 
 			mat.normal_scale = norm_scale
 	mat.albedo_color = tint
 	mat.roughness = rough
-	mat.uv1_triplanar = true
-	mat.uv1_scale = Vector3.ONE * tri_scale
 	return mat
 
 func _build_sandstone_arena() -> void:
@@ -237,6 +234,28 @@ func _add_walled_block(pos: Vector3, size: Vector3) -> void:
 func _add_sandbags(pos: Vector3, size: Vector3) -> void:
 	_add_box(pos, size, _mat_sandbag, true)
 
+func _make_tiled_box_mesh(size: Vector3, tile_scale: float = 0.25) -> ArrayMesh:
+	var bm := BoxMesh.new()
+	bm.size = size
+	var am := ArrayMesh.new()
+	am.add_surface_from_arrays(Mesh.PRIMITIVE_TRIANGLES, bm.get_mesh_arrays())
+	var mdt := MeshDataTool.new()
+	mdt.create_from_surface(am, 0)
+	for i in mdt.get_vertex_count():
+		var v := mdt.get_vertex(i)
+		var n := mdt.get_vertex_normal(i)
+		var uv := Vector2.ZERO
+		if absf(n.y) > 0.6:
+			uv = Vector2(v.x, v.z) * tile_scale
+		elif absf(n.x) > 0.6:
+			uv = Vector2(v.z, -v.y) * tile_scale
+		else:
+			uv = Vector2(v.x, -v.y) * tile_scale
+		mdt.set_vertex_uv(i, uv)
+	am.clear_surfaces()
+	mdt.commit_to_surface(am)
+	return am
+
 func _add_ramp(pos: Vector3, size: Vector3, tilt_deg_x: float, mat: Material) -> void:
 	var body := StaticBody3D.new()
 	body.position = pos
@@ -245,9 +264,7 @@ func _add_ramp(pos: Vector3, size: Vector3, tilt_deg_x: float, mat: Material) ->
 	body.collision_mask = 0
 
 	var mi := MeshInstance3D.new()
-	var bm := BoxMesh.new()
-	bm.size = size
-	mi.mesh = bm
+	mi.mesh = _make_tiled_box_mesh(size, 0.24)
 	mi.material_override = mat
 	body.add_child(mi)
 
@@ -265,9 +282,12 @@ func _add_box(pos: Vector3, size: Vector3, mat: Material, with_collision: bool =
 	body.collision_mask = 0
 
 	var mi := MeshInstance3D.new()
-	var bm := BoxMesh.new()
-	bm.size = size
-	mi.mesh = bm
+	var t_scale := 0.24
+	if mat == _mat_hazard:
+		t_scale = 0.65
+	elif mat == _mat_sandbag:
+		t_scale = 0.75
+	mi.mesh = _make_tiled_box_mesh(size, t_scale)
 	mi.material_override = mat
 	body.add_child(mi)
 
@@ -279,6 +299,39 @@ func _add_box(pos: Vector3, size: Vector3, mat: Material, with_collision: bool =
 		body.add_child(col)
 
 	_geometry_root.add_child(body)
+
+func _add_zone_lighting() -> void:
+	# Stylized Purple, Blue, and Golden-Yellow accent lights + physical emissive fixtures (non-shadowed for cool mobile FPS)
+	_add_accent_light(Vector3(0.0, 3.6, -24.0), Color(0.20, 0.62, 1.0), 3.0, 17.0, Vector3(3.2, 0.16, 0.16))    # CT Spawn Electric Blue
+	_add_accent_light(Vector3(-24.0, 3.8, 4.8), Color(0.24, 0.68, 1.0), 2.8, 16.0, Vector3(3.0, 0.16, 0.16))    # B Tunnels Cool Blue
+	_add_accent_light(Vector3(-11.8, 3.6, -2.5), Color(0.68, 0.26, 1.0), 3.1, 15.5, Vector3(0.16, 0.16, 3.0))   # B Connector Deep Purple
+	_add_accent_light(Vector3(11.8, 3.6, -2.5), Color(0.72, 0.28, 1.0), 3.1, 15.5, Vector3(0.16, 0.16, 3.0))    # A Short Deep Purple
+	_add_accent_light(Vector3(34.5, 3.8, -18.0), Color(0.70, 0.30, 1.0), 2.6, 14.0, Vector3(2.4, 0.16, 0.16))   # A Heaven Violet
+	_add_accent_light(Vector3(24.0, 4.4, -8.0), Color(1.0, 0.76, 0.22), 3.2, 17.5, Vector3(2.8, 0.16, 0.16))    # Site A Golden Yellow
+	_add_accent_light(Vector3(0.0, 4.5, 0.0), Color(1.0, 0.80, 0.28), 2.8, 16.5, Vector3(2.4, 0.16, 2.4))       # Mid Courtyard Amber
+	_add_accent_light(Vector3(0.0, 3.6, 24.0), Color(1.0, 0.66, 0.18), 3.0, 17.0, Vector3(3.2, 0.16, 0.16))     # T Spawn Warm Yellow
+
+func _add_accent_light(pos: Vector3, col: Color, energy: float, rng: float, bar_size: Vector3) -> void:
+	var omni := OmniLight3D.new()
+	omni.position = pos
+	omni.light_color = col
+	omni.light_energy = energy
+	omni.omni_range = rng
+	omni.omni_attenuation = 1.35
+	omni.shadow_enabled = false
+	_geometry_root.add_child(omni)
+
+	var bar := MeshInstance3D.new()
+	var bm := BoxMesh.new()
+	bm.size = bar_size
+	bar.mesh = bm
+	bar.position = pos + Vector3(0.0, 0.25, 0.0)
+	bar.cast_shadow = GeometryInstance3D.SHADOW_CASTING_SETTING_OFF
+	var mat := StandardMaterial3D.new()
+	mat.shading_mode = BaseMaterial3D.SHADING_MODE_UNSHADED
+	mat.albedo_color = col.lightened(0.25)
+	bar.material_override = mat
+	_geometry_root.add_child(bar)
 
 func _add_crate(pos: Vector3, size: Vector3) -> void:
 	var body := StaticBody3D.new()
@@ -333,7 +386,7 @@ func _add_site_marker(pos: Vector3, text: String, col: Color) -> void:
 
 func _setup_navmesh() -> void:
 	var nav := NavigationMesh.new()
-	nav.agent_radius = 0.5
+	nav.agent_radius = 0.44
 	nav.agent_height = 1.8
 	nav.agent_max_climb = 0.45
 	nav.agent_max_slope = 45.0
