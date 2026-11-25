@@ -1,7 +1,7 @@
 extends CharacterBody3D
 
 const GRAVITY := 20.0
-const MOVE_SPEED := 4.85
+const MOVE_SPEED := 5.05
 const PLANT_TIME := 3.2
 const DEFUSE_TIME := 5.5
 
@@ -22,9 +22,21 @@ var _agents_ref: Array = []
 var _flash_mats: Array = []
 var _flash_timer: float = 0.0
 var _walk_phase: float = 0.0
-var _left_leg: MeshInstance3D
-var _right_leg: MeshInstance3D
+var _death_anim_t: float = 0.0
+
+var _torso_pivot: Node3D
+var _head_pivot: Node3D
+var _left_leg: Node3D
+var _right_leg: Node3D
+var _right_arm: Node3D
+var _left_arm: Node3D
 var _gun_muzzle: Marker3D
+var _ally_marker: MeshInstance3D
+
+var _visor_mat: ShaderMaterial
+var _mask_mat: ShaderMaterial
+var _helmet_mat: ShaderMaterial
+var _armor_mat: ShaderMaterial
 
 var _fire_cd: float = 0.0
 var _burst_left: int = 0
@@ -38,7 +50,7 @@ var _is_bomb_carrier: bool = false
 var _exclude_rids: Array[RID] = []
 
 func _ready() -> void:
-	_build_lowpoly_soldier()
+	_build_articulated_operator()
 	hitbox_body.set_meta("owner_agent", self)
 	hitbox_body.set_meta("is_head", false)
 	hitbox_head.set_meta("owner_agent", self)
@@ -48,62 +60,133 @@ func _ready() -> void:
 	_exclude_rids.append(hitbox_body.get_rid())
 	_exclude_rids.append(hitbox_head.get_rid())
 
-func _build_lowpoly_soldier() -> void:
+func _make_flash_mat(col: Color, rough: float = 0.72) -> ShaderMaterial:
 	var shader := ResourceLoader.load("res://shaders/hit_flash.gdshader") as Shader
-	var armor_mat := ShaderMaterial.new()
-	armor_mat.shader = shader
-	armor_mat.set_shader_parameter("albedo_color", Color(0.18, 0.34, 0.62))
+	var sm := ShaderMaterial.new()
+	sm.shader = shader
+	sm.set_shader_parameter("albedo_color", col)
+	sm.set_shader_parameter("roughness_val", rough)
+	_flash_mats.append(sm)
+	return sm
 
-	var helmet_mat := ShaderMaterial.new()
-	helmet_mat.shader = shader
-	helmet_mat.set_shader_parameter("albedo_color", Color(0.14, 0.18, 0.24))
-
-	var skin_mat := ShaderMaterial.new()
-	skin_mat.shader = shader
-	skin_mat.set_shader_parameter("albedo_color", Color(0.82, 0.66, 0.54))
-
+func _build_articulated_operator() -> void:
 	_flash_mats.clear()
-	_flash_mats.append(armor_mat)
-	_flash_mats.append(helmet_mat)
-	_flash_mats.append(skin_mat)
+	_armor_mat = _make_flash_mat(Color(0.16, 0.34, 0.64), 0.68)
+	_helmet_mat = _make_flash_mat(Color(0.13, 0.16, 0.22), 0.55)
+	_mask_mat = _make_flash_mat(Color(0.16, 0.18, 0.21), 0.85)
+	_visor_mat = _make_flash_mat(Color(0.20, 0.85, 1.0), 0.18)
+	var skin_mat := _make_flash_mat(Color(0.84, 0.66, 0.52), 0.78)
+	var gear_mat := _make_flash_mat(Color(0.22, 0.24, 0.28), 0.75)
+	var gun_mat := _make_flash_mat(Color(0.15, 0.17, 0.20), 0.40)
 
-	# Torso
-	_make_part(Vector3(0.0, 1.05, 0.0), Vector3(0.46, 0.62, 0.26), armor_mat)
-	# Head + Helmet
-	_make_part(Vector3(0.0, 1.54, 0.0), Vector3(0.28, 0.28, 0.28), skin_mat)
-	_make_part(Vector3(0.0, 1.63, 0.0), Vector3(0.32, 0.16, 0.32), helmet_mat)
-	# Arms
-	_make_part(Vector3(-0.31, 1.08, -0.10), Vector3(0.15, 0.48, 0.16), armor_mat)
-	_make_part(Vector3(0.31, 1.08, -0.16), Vector3(0.15, 0.48, 0.16), armor_mat)
-	# Legs
-	_left_leg = _make_part(Vector3(-0.13, 0.38, 0.0), Vector3(0.18, 0.72, 0.20), helmet_mat)
-	_right_leg = _make_part(Vector3(0.13, 0.38, 0.0), Vector3(0.18, 0.72, 0.20), helmet_mat)
+	# Torso Pivot
+	_torso_pivot = Node3D.new()
+	_torso_pivot.position = Vector3(0.0, 0.78, 0.0)
+	visual_root.add_child(_torso_pivot)
 
-	# Low-poly Rifle in hand
-	var gun := MeshInstance3D.new()
-	var ak_mesh := ResourceLoader.load("res://assets/models/ak_rifle.obj") as Mesh
-	if ak_mesh != null:
-		gun.mesh = ak_mesh
-	else:
-		var gb := BoxMesh.new()
-		gb.size = Vector3(0.06, 0.08, 0.62)
-		gun.mesh = gb
-	gun.position = Vector3(0.24, 1.16, -0.34)
-	gun.material_override = helmet_mat
-	visual_root.add_child(gun)
+	# Core torso + tactical vest + chest mag pouches + backpack
+	_add_box(_torso_pivot, Vector3(0.0, 0.30, 0.0), Vector3(0.46, 0.58, 0.26), _armor_mat)
+	_add_box(_torso_pivot, Vector3(0.0, 0.32, -0.15), Vector3(0.38, 0.38, 0.07), gear_mat) # plate carrier
+	_add_box(_torso_pivot, Vector3(-0.11, 0.18, -0.19), Vector3(0.09, 0.15, 0.05), _helmet_mat)
+	_add_box(_torso_pivot, Vector3(0.0, 0.18, -0.19), Vector3(0.09, 0.15, 0.05), _helmet_mat)
+	_add_box(_torso_pivot, Vector3(0.11, 0.18, -0.19), Vector3(0.09, 0.15, 0.05), _helmet_mat)
+	_add_box(_torso_pivot, Vector3(0.0, 0.34, 0.18), Vector3(0.32, 0.40, 0.14), gear_mat) # tactical pack
+	# Shoulder pads
+	_add_box(_torso_pivot, Vector3(-0.29, 0.50, 0.0), Vector3(0.16, 0.16, 0.24), _armor_mat)
+	_add_box(_torso_pivot, Vector3(0.29, 0.50, 0.0), Vector3(0.16, 0.16, 0.24), _armor_mat)
+
+	# Expressive Articulated Head Pivot (bigger, bolder tactical face!)
+	_head_pivot = Node3D.new()
+	_head_pivot.position = Vector3(0.0, 0.64, 0.0)
+	_torso_pivot.add_child(_head_pivot)
+
+	# Neck & sculpted larger head
+	_add_box(_head_pivot, Vector3(0.0, 0.04, 0.0), Vector3(0.16, 0.10, 0.16), skin_mat)
+	_add_box(_head_pivot, Vector3(0.0, 0.20, 0.0), Vector3(0.34, 0.34, 0.34), skin_mat)
+	# Expressive angled brow & nose bridge
+	_add_box(_head_pivot, Vector3(0.0, 0.28, -0.17), Vector3(0.32, 0.06, 0.05), skin_mat)
+	_add_box(_head_pivot, Vector3(0.0, 0.20, -0.18), Vector3(0.06, 0.08, 0.05), skin_mat)
+	# Tactical Goggles Frame + Glowing Visor Lenses
+	_add_box(_head_pivot, Vector3(0.0, 0.23, -0.18), Vector3(0.33, 0.11, 0.05), _helmet_mat)
+	_add_box(_head_pivot, Vector3(-0.08, 0.23, -0.20), Vector3(0.12, 0.075, 0.03), _visor_mat)
+	_add_box(_head_pivot, Vector3(0.08, 0.23, -0.20), Vector3(0.12, 0.075, 0.03), _visor_mat)
+	# Lower Tactical Mask / Respirator Jaw + Filter Canisters
+	_add_box(_head_pivot, Vector3(0.0, 0.11, -0.16), Vector3(0.32, 0.14, 0.10), _mask_mat)
+	_add_box(_head_pivot, Vector3(-0.12, 0.09, -0.20), Vector3(0.08, 0.08, 0.06), gear_mat)
+	_add_box(_head_pivot, Vector3(0.12, 0.09, -0.20), Vector3(0.08, 0.08, 0.06), gear_mat)
+	# Helmet Dome + Rim + NVG Mount + Comms Headset
+	_add_box(_head_pivot, Vector3(0.0, 0.34, 0.02), Vector3(0.38, 0.17, 0.38), _helmet_mat)
+	_add_box(_head_pivot, Vector3(0.0, 0.36, -0.19), Vector3(0.10, 0.08, 0.05), gear_mat)
+	_add_box(_head_pivot, Vector3(-0.20, 0.21, 0.0), Vector3(0.06, 0.14, 0.12), gear_mat)
+	_add_box(_head_pivot, Vector3(0.20, 0.21, 0.0), Vector3(0.06, 0.14, 0.12), gear_mat)
+	_add_box(_head_pivot, Vector3(-0.14, 0.12, -0.14), Vector3(0.12, 0.025, 0.12), gear_mat) # mic boom
+
+	# Floating Friendly Diamond Marker (only visible on teammates)
+	_ally_marker = MeshInstance3D.new()
+	var pm := BoxMesh.new()
+	pm.size = Vector3(0.18, 0.18, 0.18)
+	_ally_marker.mesh = pm
+	_ally_marker.position = Vector3(0.0, 0.62, 0.0)
+	_ally_marker.rotation_degrees = Vector3(45.0, 45.0, 0.0)
+	var m_mat := StandardMaterial3D.new()
+	m_mat.shading_mode = BaseMaterial3D.SHADING_MODE_UNSHADED
+	m_mat.albedo_color = Color(0.22, 0.88, 1.0)
+	_ally_marker.material_override = m_mat
+	_ally_marker.cast_shadow = GeometryInstance3D.SHADOW_CASTING_SETTING_OFF
+	_head_pivot.add_child(_ally_marker)
+
+	# Arms + Rifle
+	_left_arm = Node3D.new()
+	_left_arm.position = Vector3(-0.30, 0.46, 0.0)
+	_torso_pivot.add_child(_left_arm)
+	_add_box(_left_arm, Vector3(0.04, -0.14, -0.14), Vector3(0.14, 0.24, 0.14), _armor_mat, Vector3(42, -22, 0))
+	_add_box(_left_arm, Vector3(0.14, -0.22, -0.34), Vector3(0.12, 0.12, 0.24), _mask_mat, Vector3(0, -28, 0))
+
+	_right_arm = Node3D.new()
+	_right_arm.position = Vector3(0.30, 0.46, 0.0)
+	_torso_pivot.add_child(_right_arm)
+	_add_box(_right_arm, Vector3(-0.02, -0.14, -0.12), Vector3(0.14, 0.24, 0.14), _armor_mat, Vector3(36, 12, 0))
+	_add_box(_right_arm, Vector3(-0.06, -0.22, -0.28), Vector3(0.12, 0.12, 0.22), _mask_mat)
+
+	# Detailed Rifle held by operator
+	var gun_root := Node3D.new()
+	gun_root.position = Vector3(-0.06, -0.18, -0.44)
+	_right_arm.add_child(gun_root)
+	_add_box(gun_root, Vector3(0, 0, 0), Vector3(0.06, 0.09, 0.44), gun_mat)
+	_add_box(gun_root, Vector3(0, 0.02, -0.34), Vector3(0.035, 0.045, 0.30), gun_mat)
+	_add_box(gun_root, Vector3(0, -0.10, -0.06), Vector3(0.035, 0.16, 0.07), _helmet_mat, Vector3(-14, 0, 0))
+	_add_box(gun_root, Vector3(0, 0.06, -0.02), Vector3(0.03, 0.035, 0.09), _helmet_mat) # optic
 
 	_gun_muzzle = Marker3D.new()
-	_gun_muzzle.position = Vector3(0.24, 1.18, -0.78)
-	visual_root.add_child(_gun_muzzle)
+	_gun_muzzle.position = Vector3(0.0, 0.02, -0.52)
+	gun_root.add_child(_gun_muzzle)
 
-func _make_part(pos: Vector3, size: Vector3, mat: Material) -> MeshInstance3D:
+	# Articulated Legs (Hip -> Thigh -> Knee Pad -> Boot)
+	_left_leg = Node3D.new()
+	_left_leg.position = Vector3(-0.14, 0.78, 0.0)
+	visual_root.add_child(_left_leg)
+	_add_box(_left_leg, Vector3(0, -0.22, 0), Vector3(0.19, 0.40, 0.20), _armor_mat)
+	_add_box(_left_leg, Vector3(0, -0.40, -0.09), Vector3(0.17, 0.12, 0.06), _helmet_mat) # knee pad
+	_add_box(_left_leg, Vector3(0, -0.56, 0), Vector3(0.17, 0.34, 0.18), _helmet_mat)
+	_add_box(_left_leg, Vector3(0, -0.73, -0.04), Vector3(0.18, 0.10, 0.26), _mask_mat) # boot
+
+	_right_leg = Node3D.new()
+	_right_leg.position = Vector3(0.14, 0.78, 0.0)
+	visual_root.add_child(_right_leg)
+	_add_box(_right_leg, Vector3(0, -0.22, 0), Vector3(0.19, 0.40, 0.20), _armor_mat)
+	_add_box(_right_leg, Vector3(0, -0.40, -0.09), Vector3(0.17, 0.12, 0.06), _helmet_mat)
+	_add_box(_right_leg, Vector3(0, -0.56, 0), Vector3(0.17, 0.34, 0.18), _helmet_mat)
+	_add_box(_right_leg, Vector3(0, -0.73, -0.04), Vector3(0.18, 0.10, 0.26), _mask_mat)
+
+func _add_box(parent: Node3D, pos: Vector3, size: Vector3, mat: Material, rot_deg: Vector3 = Vector3.ZERO) -> MeshInstance3D:
 	var mi := MeshInstance3D.new()
 	var bm := BoxMesh.new()
 	bm.size = size
 	mi.mesh = bm
 	mi.position = pos
+	mi.rotation_degrees = rot_deg
 	mi.material_override = mat
-	visual_root.add_child(mi)
+	parent.add_child(mi)
 	return mi
 
 func reset_for_round(spawn_pos: Vector3, p_team: int, p_name: String, lane: String, bomb_carrier: bool, arena_ref, all_agents: Array) -> void:
@@ -123,20 +206,35 @@ func reset_for_round(spawn_pos: Vector3, p_team: int, p_name: String, lane: Stri
 	_burst_left = 0
 	_burst_pause = 0.0
 	_repath_timer = randf_range(0.0, 0.4)
-	_reaction_timer = 0.25
+	_reaction_timer = 0.22
 	_objective_progress = 0.0
+	_death_anim_t = 0.0
 	visible = true
 	visual_root.position = Vector3.ZERO
 	visual_root.rotation = Vector3.ZERO
+	_torso_pivot.position.y = 0.78
+	_head_pivot.rotation = Vector3.ZERO
+	_left_leg.rotation = Vector3.ZERO
+	_right_leg.rotation = Vector3.ZERO
+
 	body_collider.set_deferred("disabled", false)
 	hitbox_body.set_deferred("monitoring", true)
 	hitbox_body.set_deferred("monitorable", true)
 	hitbox_head.set_deferred("monitoring", true)
 	hitbox_head.set_deferred("monitorable", true)
 
-	var team_col := Color(0.18, 0.36, 0.68) if team == GameManager.Team.CT else Color(0.68, 0.42, 0.18)
-	var armor_mat: ShaderMaterial = _flash_mats[0]
-	armor_mat.set_shader_parameter("albedo_color", team_col)
+	if team == GameManager.Team.CT:
+		_armor_mat.set_shader_parameter("albedo_color", Color(0.16, 0.35, 0.68))
+		_helmet_mat.set_shader_parameter("albedo_color", Color(0.12, 0.16, 0.24))
+		_visor_mat.set_shader_parameter("albedo_color", Color(0.22, 0.85, 1.0))
+		_mask_mat.set_shader_parameter("albedo_color", Color(0.14, 0.16, 0.20))
+	else:
+		_armor_mat.set_shader_parameter("albedo_color", Color(0.72, 0.42, 0.16))
+		_helmet_mat.set_shader_parameter("albedo_color", Color(0.24, 0.18, 0.14))
+		_visor_mat.set_shader_parameter("albedo_color", Color(1.0, 0.36, 0.16))
+		_mask_mat.set_shader_parameter("albedo_color", Color(0.45, 0.16, 0.14))
+
+	_ally_marker.visible = (team == GameManager.player_team)
 	_set_flash(0.0)
 	if global_position.distance_squared_to(Vector3.ZERO) > 0.05:
 		look_at(Vector3(0.0, global_position.y, 0.0), Vector3.UP)
@@ -150,6 +248,10 @@ func _physics_process(delta: float) -> void:
 			_set_flash(0.0)
 
 	if not is_alive:
+		if _death_anim_t < 1.0:
+			_death_anim_t = minf(1.0, _death_anim_t + delta * 5.2)
+			visual_root.rotation.x = lerpf(0.0, deg_to_rad(86.0), _death_anim_t)
+			visual_root.position.y = lerpf(0.0, 0.18, _death_anim_t)
 		return
 
 	if not is_on_floor():
@@ -174,14 +276,19 @@ func _physics_process(delta: float) -> void:
 	var has_los := _target_enemy != null and is_instance_valid(_target_enemy) and _target_enemy.is_alive and _has_line_of_sight(_target_enemy)
 
 	if has_los:
-		_face_point(_target_enemy.global_position, delta * 9.0)
+		_face_point(_target_enemy.global_position, delta * 9.5)
+		var dy := _target_enemy.global_position.y - global_position.y
+		_head_pivot.rotation.x = clampf(dy * 0.08, -0.45, 0.45)
+		_torso_pivot.position.y = lerpf(_torso_pivot.position.y, 0.68, clampf(delta * 8.0, 0.0, 1.0))
 		_reaction_timer -= delta
 		if _reaction_timer <= 0.0:
 			_handle_combat_burst()
-		var strafe := global_transform.basis.x * sin(Time.get_ticks_msec() * 0.003 + float(get_instance_id() % 7)) * 1.4
+		var strafe := global_transform.basis.x * sin(Time.get_ticks_msec() * 0.0032 + float(get_instance_id() % 7)) * 1.5
 		velocity.x = strafe.x
 		velocity.z = strafe.z
 	else:
+		_head_pivot.rotation.x = lerpf(_head_pivot.rotation.x, 0.0, clampf(delta * 8.0, 0.0, 1.0))
+		_torso_pivot.position.y = lerpf(_torso_pivot.position.y, 0.78, clampf(delta * 8.0, 0.0, 1.0))
 		_reaction_timer = randf_range(0.18, 0.34)
 		_handle_navigation_and_objective(delta)
 
@@ -190,7 +297,7 @@ func _physics_process(delta: float) -> void:
 
 func _update_target_and_destination() -> void:
 	var best_enemy: Node3D = null
-	var best_dist := 46.0
+	var best_dist := 58.0
 	for ag in _agents_ref:
 		if not is_instance_valid(ag) or ag == self or not ag.is_alive or ag.team == team:
 			continue
@@ -218,15 +325,17 @@ func _handle_navigation_and_objective(delta: float) -> void:
 		if site != "":
 			velocity.x = 0.0
 			velocity.z = 0.0
+			_torso_pivot.position.y = 0.62
 			_objective_progress += delta
 			if _objective_progress >= PLANT_TIME:
 				_objective_progress = 0.0
 				GameManager.plant_bomb(site, global_position)
 			return
 	elif team == GameManager.Team.CT and GameManager.bomb_planted and GameManager.state == GameManager.MatchState.BOMB_PLANTED:
-		if global_position.distance_to(GameManager.bomb_position) <= 2.6:
+		if global_position.distance_to(GameManager.bomb_position) <= 2.8:
 			velocity.x = 0.0
 			velocity.z = 0.0
+			_torso_pivot.position.y = 0.62
 			_objective_progress += delta
 			if _objective_progress >= DEFUSE_TIME:
 				_objective_progress = 0.0
@@ -265,7 +374,7 @@ func _fire_at_target(target: Node3D) -> void:
 	var base_dir := (aim_pt - origin).normalized()
 	var spread := 0.055
 	var dir := (base_dir + Vector3(randf_range(-spread, spread), randf_range(-spread * 0.7, spread * 0.7), randf_range(-spread, spread))).normalized()
-	var end_pt := origin + dir * 70.0
+	var end_pt := origin + dir * 75.0
 
 	var query := PhysicsRayQueryParameters3D.create(origin, end_pt, 1 | 4 | 8)
 	query.collide_with_areas = true
@@ -281,9 +390,13 @@ func _fire_at_target(target: Node3D) -> void:
 			var victim = col.get_meta("owner_agent")
 			if victim != null and victim != self and victim.team != team and victim.has_method("take_damage"):
 				var is_head := bool(col.get_meta("is_head", false))
-				var dmg := 18.0 * (2.2 if is_head else 1.0)
+				var dmg := 17.0 * (2.1 if is_head else 1.0)
 				var w_short := "M4A1" if team == GameManager.Team.CT else "AK-47"
 				victim.take_damage(dmg, agent_name, team, w_short, is_head, false)
+				if _arena != null and _arena.has_method("spawn_impact"):
+					_arena.spawn_impact(hit["position"], hit["normal"], true)
+		elif _arena != null and _arena.has_method("spawn_impact"):
+			_arena.spawn_impact(hit["position"], hit["normal"], false)
 
 	if _arena != null and _arena.has_method("spawn_tracer"):
 		_arena.spawn_tracer(_gun_muzzle.global_position, visual_end)
@@ -307,9 +420,9 @@ func _face_point(pt: Vector3, weight: float) -> void:
 func _animate_legs(delta: float) -> void:
 	var spd := Vector2(velocity.x, velocity.z).length()
 	if spd > 0.3:
-		_walk_phase += delta * spd * 2.4
-		_left_leg.rotation.x = sin(_walk_phase) * 0.5
-		_right_leg.rotation.x = -sin(_walk_phase) * 0.5
+		_walk_phase += delta * spd * 2.5
+		_left_leg.rotation.x = sin(_walk_phase) * 0.52
+		_right_leg.rotation.x = -sin(_walk_phase) * 0.52
 	else:
 		_left_leg.rotation.x = lerpf(_left_leg.rotation.x, 0.0, clampf(delta * 10.0, 0.0, 1.0))
 		_right_leg.rotation.x = lerpf(_right_leg.rotation.x, 0.0, clampf(delta * 10.0, 0.0, 1.0))
@@ -322,13 +435,12 @@ func take_damage(amount: float, killer_name: String, killer_team: int, weapon_sh
 	_flash_timer = 0.09
 	if hp <= 0:
 		is_alive = false
+		_ally_marker.visible = false
 		hitbox_body.set_deferred("monitoring", false)
 		hitbox_body.set_deferred("monitorable", false)
 		hitbox_head.set_deferred("monitoring", false)
 		hitbox_head.set_deferred("monitorable", false)
 		body_collider.set_deferred("disabled", true)
-		visual_root.rotation.x = deg_to_rad(86.0)
-		visual_root.position.y = -0.35
 		GameManager.register_kill(killer_name, killer_team, agent_name, team, weapon_short, is_headshot, killer_is_player)
 		return true
 	return false

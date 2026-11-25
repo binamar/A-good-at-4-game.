@@ -2,11 +2,12 @@ extends CharacterBody3D
 
 signal health_changed(hp: int, armor: int)
 signal weapon_changed(weapon_name: String, mag: int, reserve: int, slot: int, is_reloading: bool)
-signal hitmarker_triggered(is_headshot: bool, killed: bool)
+signal hitmarker_triggered(is_headshot: bool, killed: bool, dmg: int)
+signal damage_taken_triggered()
 signal action_prompt_changed(visible: bool, label: String, progress: float)
 
 const GRAVITY := 20.0
-const JUMP_SPEED := 6.6
+const JUMP_SPEED := 6.7
 const CROUCH_SPEED_MULT := 0.56
 const STAND_HEIGHT := 1.75
 const CROUCH_HEIGHT := 1.15
@@ -37,6 +38,7 @@ var _yaw: float = 0.0
 var _pitch: float = 0.0
 var _recoil_pitch_offset: float = 0.0
 var _recoil_yaw_offset: float = 0.0
+var _punch_roll: float = 0.0
 var _spray_shots: int = 0
 var _fire_cooldown: float = 0.0
 var _reload_timer: float = 0.0
@@ -71,6 +73,7 @@ func reset_for_round(spawn_pos: Vector3, look_yaw: float, p_team: int, arena_ref
 	_pitch = 0.0
 	_recoil_pitch_offset = 0.0
 	_recoil_yaw_offset = 0.0
+	_punch_roll = 0.0
 	_spray_shots = 0
 	_fire_cooldown = 0.0
 	_reload_timer = 0.0
@@ -94,6 +97,10 @@ func reset_for_round(spawn_pos: Vector3, look_yaw: float, p_team: int, arena_ref
 	if GameManager.player_primary_weapon != -1:
 		var pri_stats := WeaponData.get_stats(GameManager.player_primary_weapon)
 		_weapons[1] = {"id": GameManager.player_primary_weapon, "mag": pri_stats["mag_size"], "reserve": pri_stats["reserve_max"]}
+	if GameManager.player_has_grenade:
+		_weapons[4] = {"id": WeaponData.WeaponId.HE_GRENADE, "mag": 1, "reserve": 0}
+
+	if _weapons.has(1):
 		equip_slot(1)
 	else:
 		equip_slot(2)
@@ -110,6 +117,9 @@ func apply_armor() -> void:
 	armor = 100
 	health_changed.emit(hp, armor)
 
+func has_slot(slot: int) -> bool:
+	return _weapons.has(slot)
+
 func equip_slot(slot: int) -> void:
 	if not _weapons.has(slot):
 		return
@@ -123,10 +133,10 @@ func equip_slot(slot: int) -> void:
 	_emit_weapon_ui()
 
 func cycle_weapon() -> void:
-	var order := [1, 2, 3]
+	var order := [1, 2, 3, 4]
 	var idx := order.find(_current_slot)
-	for step in range(1, 4):
-		var next_slot: int = order[(idx + step) % 3]
+	for step in range(1, 5):
+		var next_slot: int = order[(idx + step) % 4]
 		if _weapons.has(next_slot):
 			equip_slot(next_slot)
 			return
@@ -147,7 +157,7 @@ func toggle_crouch() -> void:
 
 func toggle_ads() -> void:
 	var w: Dictionary = _weapons.get(_current_slot, {})
-	if w.is_empty() or w["id"] == WeaponData.WeaponId.KNIFE:
+	if w.is_empty() or w["id"] == WeaponData.WeaponId.KNIFE or w["id"] == WeaponData.WeaponId.HE_GRENADE:
 		is_ads = false
 	else:
 		is_ads = not is_ads
@@ -160,7 +170,7 @@ func trigger_reload() -> void:
 	if w.is_empty():
 		return
 	var stats := WeaponData.get_stats(w["id"])
-	if stats["is_melee"] or w["mag"] >= stats["mag_size"] or w["reserve"] <= 0:
+	if stats["is_melee"] or stats["is_grenade"] or w["mag"] >= stats["mag_size"] or w["reserve"] <= 0:
 		return
 	_reload_timer = stats["reload_time"]
 	is_ads = false
@@ -176,10 +186,9 @@ func set_fire_pressed(pressed: bool) -> void:
 		_try_fire()
 
 func _physics_process(delta: float) -> void:
-	if not is_alive:
+	if not is_alive or _weapons.is_empty():
 		return
 
-	# Optional keyboard fallback for testing on desktop
 	var kb_move := Vector2(
 		Input.get_action_strength("ui_right") - Input.get_action_strength("ui_left"),
 		Input.get_action_strength("ui_down") - Input.get_action_strength("ui_up")
@@ -191,7 +200,6 @@ func _physics_process(delta: float) -> void:
 	var w: Dictionary = _weapons.get(_current_slot, _weapons[2])
 	var stats := WeaponData.get_stats(w["id"])
 
-	# Cooldowns & Reload
 	if _fire_cooldown > 0.0:
 		_fire_cooldown -= delta
 	if _reload_timer > 0.0:
@@ -206,7 +214,8 @@ func _physics_process(delta: float) -> void:
 		_recoil_pitch_offset = lerpf(_recoil_pitch_offset, 0.0, clampf(delta * 10.0, 0.0, 1.0))
 		_recoil_yaw_offset = lerpf(_recoil_yaw_offset, 0.0, clampf(delta * 10.0, 0.0, 1.0))
 
-	# Smooth Crouch height & FOV
+	_punch_roll = lerpf(_punch_roll, 0.0, clampf(delta * 12.0, 0.0, 1.0))
+
 	var target_eye_y := 0.98 if is_crouching else 1.54
 	head.position.y = lerpf(head.position.y, target_eye_y, clampf(delta * 12.0, 0.0, 1.0))
 	var col_shape := body_collider.shape as CapsuleShape3D
@@ -218,11 +227,10 @@ func _physics_process(delta: float) -> void:
 	var target_fov: float = stats["ads_fov"] if is_ads else 75.0
 	camera.fov = lerpf(camera.fov, target_fov, clampf(delta * 14.0, 0.0, 1.0))
 
-	# Rotation
 	rotation.y = _yaw + _recoil_yaw_offset
 	head.rotation.x = clampf(_pitch + _recoil_pitch_offset, deg_to_rad(-85.0), deg_to_rad(85.0))
+	head.rotation.z = _punch_roll
 
-	# Movement
 	if not is_on_floor():
 		velocity.y -= GRAVITY * delta
 
@@ -255,6 +263,18 @@ func _try_fire() -> void:
 	var w: Dictionary = _weapons[_current_slot]
 	var stats := WeaponData.get_stats(w["id"])
 
+	if stats["is_grenade"]:
+		_fire_cooldown = stats["fire_rate"]
+		viewmodel.trigger_fire()
+		AudioManager.play_sfx("throw", -4.0, 0.05)
+		var cam_dir := -camera.global_transform.basis.z
+		if arena != null and arena.has_method("throw_grenade"):
+			arena.throw_grenade(camera.global_position + cam_dir * 0.7, cam_dir, agent_name, team)
+		GameManager.player_has_grenade = false
+		_weapons.erase(4)
+		equip_slot(1 if _weapons.has(1) else 2)
+		return
+
 	if not stats["is_melee"] and w["mag"] <= 0:
 		trigger_reload()
 		return
@@ -276,7 +296,6 @@ func _try_fire() -> void:
 		_:
 			AudioManager.play_sfx("rifle", -3.0, 0.05)
 
-	# Compute CS-style spread
 	var h_speed := Vector2(velocity.x, velocity.z).length()
 	var move_factor := clampf(h_speed / 5.5, 0.0, 1.0)
 	var spread: float = stats["base_spread"] + stats["move_spread"] * move_factor
@@ -312,12 +331,15 @@ func _try_fire() -> void:
 				var dmg: float = stats["damage"] * (stats["head_mult"] if is_head else 1.0)
 				var killed: bool = target.take_damage(dmg, agent_name, team, stats["short"], is_head, true)
 				AudioManager.play_sfx("headshot" if is_head else "hit", -3.0, 0.04)
-				hitmarker_triggered.emit(is_head, killed)
+				hitmarker_triggered.emit(is_head, killed, int(round(dmg)))
+				if arena != null and arena.has_method("spawn_impact"):
+					arena.spawn_impact(hit["position"], hit["normal"], true)
+		elif arena != null and arena.has_method("spawn_impact"):
+			arena.spawn_impact(hit["position"], hit["normal"], false)
 
 	if not stats["is_melee"] and arena and arena.has_method("spawn_tracer"):
 		arena.spawn_tracer(viewmodel.get_muzzle_world_pos(), visual_end)
 
-	# Apply recoil climb
 	_spray_shots += 1
 	_recoil_pitch_offset = clampf(_recoil_pitch_offset + deg_to_rad(stats["recoil_pitch"]), 0.0, deg_to_rad(14.0))
 	var yaw_jitter := randf_range(-float(stats["recoil_yaw"]), float(stats["recoil_yaw"]))
@@ -379,7 +401,9 @@ func take_damage(amount: float, killer_name: String, killer_team: int, weapon_sh
 		armor = maxi(0, armor - int(round(absorbed)))
 		actual -= absorbed * 0.65
 	hp = maxi(0, hp - int(round(actual)))
+	_punch_roll = randf_range(-0.04, 0.04)
 	health_changed.emit(hp, armor)
+	damage_taken_triggered.emit()
 	if hp <= 0:
 		is_alive = false
 		visible = false

@@ -10,8 +10,9 @@ Offline Counter-Strike-inspired **5v5 tactical bomb-defusal FPS** built from scr
 4. Wait a few seconds for Godot to import the textures in `assets/textures/` and `.obj` models in `assets/models/`.
 5. Press **Play (▶)** to launch `scenes/main.tscn`.
 
-## Features Included in Phase 1
-- **5v5 Offline Competitive Match:** Play as **Counter-Terrorist (CT)** or **Terrorist (T)** with 9 tactical AI bots (`NavigationAgent3D`) that patrol lanes, peek angles, plant C4 at **Site A** or **Site B**, and rotate to defuse.
-- **Competitive Small Map (`Sandstone Yard`):** Compact 3-lane layout (Long A, Mid Courtyard, B Tunnels, CT Spawn, T Spawn, Site A, Site B) built for fast rounds and clean sightlines.
-- **Mobile Touch Controls:** Multi-touch virtual joystick (left thumb), smooth drag-to-aim + **drag-while-firing** recoil control (right thumb), ADS zoom, crouch, jump, reload, weapon switch, contextual Plant/Defuse button, radar minimap, and adjustable touch sensitivity.
-- **CS-Style Gunplay & Economy:** Standing/crouch accuracy, movement spread, spray recoil patterns, headshots (`3.5x` multiplier), buy menu (`$800` start), and procedural low-RAM SFX (`AudioStreamWAV`).
+## Features Included
+- **5v5 Offline Competitive Match:** Play as **Counter-Terrorist (CT)** or **Terrorist (T)** with 9 tactical AI operators (`NavigationAgent3D`) that patrol lanes, peek angles, crouch in gunfights, plant C4 at **Site A** or **Site B**, and rotate to defuse.
+- **Expanded Map (`Sandstone Yard` — 78m × 66m):** 3-lane layout with **Site A Heaven** & **Site B Balcony** elevated platforms, walkable ramps, central monument plinth, pergola arches, sandbag bunkers, and 512px PBR albedo + normal-map textures.
+- **Articulated Operator Rigs & Expressive Faces:** Multi-joint character rigs with sculpted faces, glowing tactical visors, respirator masks, NVG helmets, chest plate carriers, and animated limb/death poses.
+- **Multi-Material Viewmodels & First-Person Arms:** Camo-sleeved arms and tactical gloves holding detailed AK-47, M4A1 (red-dot + suppressor), MP5-SD, USP-Tactical (tritium sights), Glock-18C, Combat Knife, and throwable **HE Frag Grenade**, with live muzzle-flash lighting.
+- **Mobile Touch Controls & Scoreboard:** Multi-touch virtual joystick, drag-while-firing recoil control, direct `[RIFLE] [PISTOL] [KNIFE] [FRAG]` slot bar, live 5v5 K/D scoreboard, damage vignette, multikill callouts, and procedural `AudioStreamWAV` SFX.

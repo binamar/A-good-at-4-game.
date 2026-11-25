@@ -10,7 +10,7 @@ height = 1.75
 size = Vector3(0.56, 1.08, 0.38)
 
 [sub_resource type="SphereShape3D" id="SphereShape_bot_head"]
-radius = 0.23
+radius = 0.25
 
 [node name="BotAgent" type="CharacterBody3D"]
 collision_layer = 2
@@ -41,5 +41,5 @@ collision_layer = 8
 collision_mask = 0
 
 [node name="Shape" type="CollisionShape3D" parent="HitboxHead"]
-transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, 1.56, 0)
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, 1.64, 0)
 shape = SubResource("SphereShape_bot_head")

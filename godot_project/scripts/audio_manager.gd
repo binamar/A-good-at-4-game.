@@ -1,10 +1,10 @@
 extends Node
 
 const SAMPLE_RATE := 22050
-const POOL_SIZE := 10
+const POOL_SIZE := 12
 
 var _streams: Dictionary = {}
-var _players: Array[AudioStreamPlayer] = []
+var _players: Array = []
 var _cursor := 0
 
 func _ready() -> void:
@@ -20,18 +20,20 @@ func _build_procedural_sfx() -> void:
 	_streams["pistol"] = _make_noise_shot(0.11, 260.0, 34.0, 0.72)
 	_streams["smg"] = _make_noise_shot(0.09, 290.0, 38.0, 0.65)
 	_streams["knife"] = _make_noise_shot(0.08, 620.0, 42.0, 0.45)
+	_streams["throw"] = _make_noise_shot(0.10, 340.0, 28.0, 0.45)
 	_streams["hit"] = _make_tone(0.055, 1180.0, 880.0, 0.55)
-	_streams["headshot"] = _make_tone(0.11, 2150.0, 1520.0, 0.85)
+	_streams["headshot"] = _make_tone(0.12, 2280.0, 1620.0, 0.90)
 	_streams["reload"] = _make_tone(0.12, 420.0, 620.0, 0.45)
 	_streams["beep"] = _make_tone(0.085, 2400.0, 2400.0, 0.50)
 	_streams["plant"] = _make_tone(0.22, 920.0, 1480.0, 0.65)
-	_streams["explode"] = _make_noise_shot(0.65, 65.0, 5.0, 0.95)
+	_streams["explode"] = _make_noise_shot(0.75, 58.0, 4.5, 0.96)
 	_streams["win"] = _make_tone(0.32, 523.25, 783.99, 0.55)
+	_streams["multikill"] = _make_tone(0.26, 660.0, 1320.0, 0.70)
 
 func play_sfx(key: String, volume_db: float = -4.0, pitch_jitter: float = 0.05) -> void:
 	if not _streams.has(key):
 		return
-	var p := _players[_cursor]
+	var p: AudioStreamPlayer = _players[_cursor]
 	_cursor = (_cursor + 1) % POOL_SIZE
 	p.stream = _streams[key]
 	p.volume_db = volume_db

@@ -27,12 +27,13 @@ interface WeaponRow {
 }
 
 const WEAPONS: WeaponRow[] = [
-  { name: 'AK-47', slot: 'Primary', price: '$2,700', damage: '36', headshot: '3.8x', mag: '30 / 90', speed: '5.40 m/s' },
-  { name: 'M4A1-Carbine', slot: 'Primary', price: '$2,900', damage: '33', headshot: '3.2x', mag: '25 / 75', speed: '5.55 m/s' },
-  { name: 'MP5-SD', slot: 'Primary', price: '$1,500', damage: '24', headshot: '2.6x', mag: '30 / 90', speed: '5.95 m/s' },
-  { name: 'USP-Tactical', slot: 'Secondary', price: '$200', damage: '32', headshot: '3.4x', mag: '12 / 36', speed: '6.20 m/s' },
-  { name: 'Glock-18C', slot: 'Secondary', price: '$200', damage: '26', headshot: '3.2x', mag: '20 / 60', speed: '6.30 m/s' },
-  { name: 'Tactical Knife', slot: 'Melee', price: '$0', damage: '55', headshot: '1.5x', mag: 'Melee', speed: '6.70 m/s' },
+  { name: 'AK-47', slot: 'Primary', price: '$2,700', damage: '37', headshot: '3.8x', mag: '30 / 90', speed: '5.45 m/s' },
+  { name: 'M4A1-Carbine', slot: 'Primary', price: '$2,900', damage: '34', headshot: '3.3x', mag: '25 / 75', speed: '5.60 m/s' },
+  { name: 'MP5-SD', slot: 'Primary', price: '$1,500', damage: '25', headshot: '2.7x', mag: '30 / 90', speed: '6.00 m/s' },
+  { name: 'USP-Tactical', slot: 'Secondary', price: '$200', damage: '33', headshot: '3.4x', mag: '12 / 36', speed: '6.25 m/s' },
+  { name: 'Glock-18C', slot: 'Secondary', price: '$200', damage: '27', headshot: '3.2x', mag: '20 / 60', speed: '6.35 m/s' },
+  { name: 'HE Frag Grenade', slot: 'Utility', price: '$300', damage: '94', headshot: '1.0x', mag: '1 / 0', speed: '6.60 m/s' },
+  { name: 'Tactical Knife', slot: 'Melee', price: '$0', damage: '55', headshot: '1.5x', mag: 'Melee', speed: '6.85 m/s' },
 ];
 
 interface MapCallout {
@@ -48,13 +49,15 @@ interface MapCallout {
 }
 
 const CALLOUTS: MapCallout[] = [
-  { id: 'CT', label: 'CT Spawn', x: 185, y: 24, w: 130, h: 48, tone: '#2563eb', detail: 'Counter-Terrorist start zone with fast rotations to both bombsites and Mid.', coords: 'X: -4..4, Z: -19.5' },
-  { id: 'B', label: 'Site B', x: 36, y: 84, w: 120, h: 112, tone: '#0ea5e9', detail: 'West bombsite with sandstone pillar cover and stacked crates.', coords: 'X: -18.0, Z: -6.0' },
-  { id: 'MID', label: 'Mid Courtyard', x: 185, y: 120, w: 130, h: 120, tone: '#64748b', detail: 'Central duel lane with double crate stack and connectors to A Short and B.', coords: 'X: 0.0, Z: 0.0' },
-  { id: 'A', label: 'Site A', x: 344, y: 84, w: 120, h: 112, tone: '#f59e0b', detail: 'East bombsite with boost crate, barrels, and Long A / Short A entries.', coords: 'X: 18.0, Z: -6.0' },
-  { id: 'BTUN', label: 'B Tunnels', x: 36, y: 218, w: 120, h: 96, tone: '#475569', detail: 'West choke connecting T Spawn into Site B.', coords: 'X: -18.0, Z: 12.0' },
-  { id: 'ALONG', label: 'Long A', x: 344, y: 218, w: 120, h: 96, tone: '#475569', detail: 'East approach with mid-lane crate cover leading to Site A.', coords: 'X: 18.0, Z: 12.0' },
-  { id: 'T', label: 'T Spawn', x: 185, y: 298, w: 130, h: 48, tone: '#d97706', detail: 'Terrorist start zone with C4 carrier spawned in center slot.', coords: 'X: -4..4, Z: 19.5' },
+  { id: 'CT', label: 'CT Spawn', x: 185, y: 24, w: 130, h: 46, tone: '#2563eb', detail: 'Counter-Terrorist pergola spawn with sandbag cover and fast rotations to both bombsites and Mid.', coords: 'X: -5..5, Z: -26.5' },
+  { id: 'BBALC', label: 'B Balcony', x: 26, y: 54, w: 66, h: 42, tone: '#38bdf8', detail: 'Elevated Y=+2.0m overlook above Site B connected via a 45°-navigable ramp.', coords: 'X: -34.5, Y: 2.0, Z: -18.5' },
+  { id: 'B', label: 'Site B', x: 36, y: 102, w: 120, h: 98, tone: '#0ea5e9', detail: 'West bombsite with hazard pad, sandstone pillar cover, crates, and elevated B Balcony flank.', coords: 'X: -24.0, Z: -8.0' },
+  { id: 'MID', label: 'Mid Courtyard', x: 185, y: 118, w: 130, h: 124, tone: '#64748b', detail: 'Central duel courtyard with monument plinth, stacked crates, sandbag bunkers, and A-Short / B-Connector arches.', coords: 'X: 0.0, Z: 0.0' },
+  { id: 'AHEAV', label: 'A Heaven', x: 408, y: 54, w: 66, h: 42, tone: '#fb923c', detail: 'Elevated Y=+2.0m parapet platform overlooking Site A with a walkable ramp from Long A.', coords: 'X: 34.5, Y: 2.0, Z: -18.5' },
+  { id: 'A', label: 'Site A', x: 344, y: 102, w: 120, h: 98, tone: '#f59e0b', detail: 'East bombsite with hazard pad, double-stacked crates, barrels, and A Heaven high ground.', coords: 'X: 24.0, Z: -8.0' },
+  { id: 'BTUN', label: 'B Tunnels', x: 36, y: 218, w: 120, h: 86, tone: '#475569', detail: 'West approach framed by corrugated metal panels and crate cover leading to Site B.', coords: 'X: -24.0, Z: 14.0' },
+  { id: 'ALONG', label: 'Long A', x: 344, y: 218, w: 120, h: 86, tone: '#475569', detail: 'East approach under pergola beams with barrel and crate cover leading to Site A.', coords: 'X: 24.0, Z: 14.0' },
+  { id: 'T', label: 'T Spawn', x: 185, y: 300, w: 130, h: 46, tone: '#d97706', detail: 'Terrorist pergola spawn with sandbag line and C4 carrier assigned to flank or site push.', coords: 'X: -5..5, Z: 26.5' },
 ];
 
 export default function App() {
@@ -188,9 +191,9 @@ export default function App() {
                   Offline 5v5 tactical FPS built for Android touch and 60 FPS performance.
                 </h1>
                 <p className="text-slate-300 text-base leading-relaxed max-w-2xl">
-                  Generated inside <code className="text-amber-300 text-sm">/godot_project</code> with low-poly Wavefront
-                  models, 256px tileable textures, Mobile Vulkan rendering, NavigationAgent3D bot routing, and
-                  multi-touch drag-while-firing recoil controls.
+                  Generated inside <code className="text-amber-300 text-sm">/godot_project</code> with 512px PBR albedo and
+                  normal-map textures, articulated tactical operators, first-person camo arms, HE frag grenades,
+                  NavigationAgent3D bot routing, and multi-touch drag-while-firing recoil controls.
                 </p>
               </div>
 
@@ -209,7 +212,7 @@ export default function App() {
             <section className="grid grid-cols-2 sm:grid-cols-4 gap-4">
               <div className="bg-slate-900 border border-slate-800 rounded-xl p-4">
                 <p className="text-xs text-slate-400">Renderer</p>
-                <p className="font-display text-lg font-semibold text-slate-100 mt-1">Mobile / ETC2</p>
+                <p className="font-display text-lg font-semibold text-slate-100 mt-1">Mobile / PBR Normals</p>
               </div>
               <div className="bg-slate-900 border border-slate-800 rounded-xl p-4">
                 <p className="text-xs text-slate-400">Match Format</p>
@@ -217,7 +220,7 @@ export default function App() {
               </div>
               <div className="bg-slate-900 border border-slate-800 rounded-xl p-4">
                 <p className="text-xs text-slate-400">Arena Footprint</p>
-                <p className="font-display text-lg font-semibold text-slate-100 mt-1 tabular-nums">56m × 48m</p>
+                <p className="font-display text-lg font-semibold text-slate-100 mt-1 tabular-nums">78m × 66m</p>
               </div>
               <div className="bg-slate-900 border border-slate-800 rounded-xl p-4">
                 <p className="text-xs text-slate-400">Audio Footprint</p>
@@ -308,7 +311,7 @@ export default function App() {
                         y={zone.y + zone.h / 2 + 4}
                         textAnchor="middle"
                         fill="#f8fafc"
-                        fontSize="13"
+                        fontSize={zone.w < 80 ? '10.5' : '13'}
                         fontWeight="600"
                       >
                         {zone.label}
@@ -332,9 +335,9 @@ export default function App() {
                   <Shield className="w-4 h-4 text-sky-400" />
                   Mobile Optimization Rules Applied
                 </h4>
-                <p>Triplanar 256px textures share 5 material instances across the entire map.</p>
-                <p>14-item bullet tracer pool eliminates runtime node allocation during spray fire.</p>
-                <p>Synchronous NavigationMesh bake ensures all 9 AI bots route cleanly around crates.</p>
+                <p>Triplanar 512px PBR albedo and normal maps share 7 material instances across the 78m × 66m arena.</p>
+                <p>16-item tracer pool and 20-item impact pool eliminate runtime mesh allocation during gunfights.</p>
+                <p>Synchronous 45°-slope NavigationMesh bake routes all 9 AI operators across ramps, Heaven, and crates.</p>
               </div>
             </div>
           </div>
@@ -404,7 +407,7 @@ export default function App() {
                         className="w-48 h-48 object-contain border border-slate-800 rounded-lg"
                         referrerPolicy="no-referrer"
                       />
-                      <p className="text-xs font-mono text-slate-400">256 × 256 tileable PNG texture</p>
+                      <p className="text-xs font-mono text-slate-400">512 × 512 PBR PNG texture</p>
                     </div>
                   ) : (
                     <pre className="p-4 text-xs font-mono text-slate-200 overflow-x-auto max-h-[560px] leading-relaxed">

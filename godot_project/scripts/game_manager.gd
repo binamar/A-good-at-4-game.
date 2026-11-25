@@ -24,7 +24,7 @@ enum MatchState {
 
 const ROUNDS_TO_WIN := 7
 const FREEZE_DURATION := 3.5
-const ROUND_DURATION := 105.0
+const ROUND_DURATION := 110.0
 const BOMB_DURATION := 40.0
 const ROUND_END_DURATION := 3.5
 
@@ -35,11 +35,15 @@ var t_score: int = 0
 var current_round: int = 1
 var phase_timer: float = 0.0
 
-var player_money: int = 800
+var player_money: int = 1000
 var player_has_armor: bool = false
 var player_has_defuse_kit: bool = false
+var player_has_grenade: bool = false
 var player_primary_weapon: int = -1
 var player_secondary_weapon: int = 1
+var player_round_kills: int = 0
+
+var scoreboard: Dictionary = {} # agent_name -> {team, kills, deaths}
 
 var bomb_planted: bool = false
 var bomb_site_name: String = ""
@@ -54,11 +58,14 @@ func start_new_match(chosen_team: int) -> void:
 	ct_score = 0
 	t_score = 0
 	current_round = 1
-	player_money = 800
+	player_money = 1000
 	player_has_armor = false
 	player_has_defuse_kit = false
+	player_has_grenade = false
 	player_primary_weapon = -1
 	player_secondary_weapon = WeaponData.WeaponId.USP_PISTOL if chosen_team == Team.CT else WeaponData.WeaponId.GLOCK_PISTOL
+	player_round_kills = 0
+	scoreboard.clear()
 	bomb_planted = false
 	bomb_site_name = ""
 	state = MatchState.FREEZE_BUY
@@ -115,6 +122,7 @@ func _begin_round() -> void:
 	bomb_planted = false
 	bomb_site_name = ""
 	bomb_beep_accum = 0.0
+	player_round_kills = 0
 	state = MatchState.FREEZE_BUY
 	phase_timer = FREEZE_DURATION
 	if match_controller and match_controller.has_method("setup_round_entities"):
@@ -123,13 +131,13 @@ func _begin_round() -> void:
 	score_changed.emit(ct_score, t_score, current_round)
 	money_updated.emit(player_money)
 	bomb_state_changed.emit(false, "", 0.0)
-	announcement_triggered.emit("ROUND %d" % current_round, "Buy Phase — Tap BUY to equip", Color(0.96, 0.68, 0.18))
+	announcement_triggered.emit("ROUND %d" % current_round, "Tap BUY to gear up — Move unlocks in 3s", Color(0.96, 0.68, 0.18))
 
 func is_movement_frozen() -> bool:
 	return state == MatchState.FREEZE_BUY or state == MatchState.MATCH_OVER
 
 func can_buy() -> bool:
-	return state == MatchState.FREEZE_BUY or (state == MatchState.LIVE and phase_timer >= ROUND_DURATION - 8.0)
+	return state == MatchState.FREEZE_BUY or (state == MatchState.LIVE and phase_timer >= ROUND_DURATION - 10.0)
 
 func add_money(amount: int) -> void:
 	player_money = clampi(player_money + amount, 0, 16000)
@@ -142,11 +150,15 @@ func try_buy_weapon(weapon_id: int) -> bool:
 	var price: int = stats["price"]
 	if player_money < price:
 		return false
+	if stats["is_grenade"] and player_has_grenade:
+		return false
 	player_money -= price
 	if stats["slot"] == 1:
 		player_primary_weapon = weapon_id
 	elif stats["slot"] == 2:
 		player_secondary_weapon = weapon_id
+	elif stats["slot"] == 4:
+		player_has_grenade = true
 	money_updated.emit(player_money)
 	if match_controller and match_controller.has_method("give_player_weapon"):
 		match_controller.give_player_weapon(weapon_id)
@@ -203,14 +215,41 @@ func _on_bomb_exploded() -> void:
 	AudioManager.play_sfx("explode", -1.0, 0.0)
 	_end_round(Team.T, "Target Detonated")
 
+func register_agent_scoreboard(ag_name: String, ag_team: int) -> void:
+	if not scoreboard.has(ag_name):
+		scoreboard[ag_name] = {"team": ag_team, "kills": 0, "deaths": 0}
+	else:
+		scoreboard[ag_name]["team"] = ag_team
+
 func register_kill(killer_name: String, killer_team: int, victim_name: String, victim_team: int, weapon_short: String, is_headshot: bool, killer_is_player: bool) -> void:
+	register_agent_scoreboard(killer_name, killer_team)
+	register_agent_scoreboard(victim_name, victim_team)
+	if killer_team != victim_team:
+		scoreboard[killer_name]["kills"] += 1
+	scoreboard[victim_name]["deaths"] += 1
+
 	kill_feed_added.emit(killer_name, killer_team, victim_name, victim_team, weapon_short, is_headshot)
 	if killer_is_player and killer_team != victim_team:
 		add_money(300)
+		player_round_kills += 1
+		if player_round_kills == 2:
+			AudioManager.play_sfx("multikill", -4.0, 0.0)
+			announcement_triggered.emit("DOUBLE KILL", "+$300 Elimination Bonus", Color(0.98, 0.78, 0.22))
+		elif player_round_kills == 3:
+			AudioManager.play_sfx("multikill", -3.0, 0.05)
+			announcement_triggered.emit("TRIPLE KILL!", "Dominating the round", Color(0.98, 0.48, 0.22))
+		elif player_round_kills == 4:
+			AudioManager.play_sfx("multikill", -2.0, 0.08)
+			announcement_triggered.emit("QUAD KILL!", "One enemy left!", Color(0.95, 0.28, 0.28))
+		elif player_round_kills >= 5:
+			AudioManager.play_sfx("multikill", -1.0, 0.1)
+			announcement_triggered.emit("ACE!", "5-Kill Sweep!", Color(0.25, 0.92, 0.55))
+
 	if victim_name == "You":
 		player_primary_weapon = -1
 		player_has_armor = false
 		player_has_defuse_kit = false
+		player_has_grenade = false
 	_check_team_elimination()
 
 func _check_team_elimination() -> void:

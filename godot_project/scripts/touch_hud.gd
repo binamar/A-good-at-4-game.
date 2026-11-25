@@ -26,6 +26,7 @@ var _money_lbl: Label
 var _hp_lbl: Label
 var _ammo_lbl: Label
 var _weapon_lbl: Label
+var _hit_dmg_lbl: Label
 var _announce_box: PanelContainer
 var _announce_title: Label
 var _announce_sub: Label
@@ -41,18 +42,26 @@ var _reload_btn: Button
 var _swap_btn: Button
 var _buy_btn: Button
 var _pause_btn: Button
+var _score_btn: Button
+var _slot1_btn: Button
+var _slot2_btn: Button
+var _slot3_btn: Button
+var _slot4_btn: Button
 var _action_btn: Button
 var _action_bar: ProgressBar
 
 # Overlays
 var _buy_panel: PanelContainer
 var _pause_panel: PanelContainer
+var _score_panel: PanelContainer
+var _score_text: Label
 var _match_over_panel: PanelContainer
 var _match_over_lbl: Label
 var _sens_lbl: Label
 
 var _hitmarker_timer: float = 0.0
 var _hitmarker_head: bool = false
+var _damage_flash_timer: float = 0.0
 
 func _ready() -> void:
 	_build_hud()
@@ -70,6 +79,7 @@ func bind_player(p: CharacterBody3D, arena_ref: Node, all_agents: Array) -> void
 	_player.health_changed.connect(_on_health_changed)
 	_player.weapon_changed.connect(_on_weapon_changed)
 	_player.hitmarker_triggered.connect(_on_hitmarker)
+	_player.damage_taken_triggered.connect(_on_damage_taken)
 	_player.action_prompt_changed.connect(_on_action_prompt)
 
 func _build_hud() -> void:
@@ -100,18 +110,33 @@ func _build_hud() -> void:
 
 	_ct_alive_lbl = _make_chip_label("CT 5", Color(0.22, 0.54, 0.94), 68)
 	_top_score_lbl = _make_chip_label("0 : 0", Color(0.12, 0.15, 0.20), 92)
-	_timer_lbl = _make_chip_label("1:45", Color(0.12, 0.15, 0.20), 86)
+	_timer_lbl = _make_chip_label("1:50", Color(0.12, 0.15, 0.20), 86)
 	_t_alive_lbl = _make_chip_label("5 T", Color(0.90, 0.56, 0.18), 68)
 	top_bar.add_child(_ct_alive_lbl)
 	top_bar.add_child(_top_score_lbl)
 	top_bar.add_child(_timer_lbl)
 	top_bar.add_child(_t_alive_lbl)
 
+	# Floating Hit Damage Feedback near crosshair
+	_hit_dmg_lbl = Label.new()
+	_hit_dmg_lbl.anchor_left = 0.5
+	_hit_dmg_lbl.anchor_right = 0.5
+	_hit_dmg_lbl.anchor_top = 0.5
+	_hit_dmg_lbl.anchor_bottom = 0.5
+	_hit_dmg_lbl.offset_left = 22
+	_hit_dmg_lbl.offset_right = 150
+	_hit_dmg_lbl.offset_top = -36
+	_hit_dmg_lbl.offset_bottom = -8
+	_hit_dmg_lbl.add_theme_font_size_override("font_size", 18)
+	_hit_dmg_lbl.visible = false
+	_hit_dmg_lbl.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	_hud_root.add_child(_hit_dmg_lbl)
+
 	# Kill Feed (Top Right)
 	_kill_feed_box = VBoxContainer.new()
 	_kill_feed_box.anchor_left = 1.0
 	_kill_feed_box.anchor_right = 1.0
-	_kill_feed_box.offset_left = -320
+	_kill_feed_box.offset_left = -330
 	_kill_feed_box.offset_right = -16
 	_kill_feed_box.offset_top = 16
 	_kill_feed_box.offset_bottom = 180
@@ -130,12 +155,34 @@ func _build_hud() -> void:
 	status_box.mouse_filter = Control.MOUSE_FILTER_IGNORE
 	_hud_root.add_child(status_box)
 
-	_hp_lbl = _make_chip_label("HP 100", Color(0.11, 0.14, 0.19, 0.85), 116)
-	_money_lbl = _make_chip_label("$800", Color(0.12, 0.42, 0.22, 0.88), 96)
+	_hp_lbl = _make_chip_label("HP 100", Color(0.11, 0.14, 0.19, 0.85), 118)
+	_money_lbl = _make_chip_label("$1000", Color(0.12, 0.42, 0.22, 0.88), 96)
 	status_box.add_child(_hp_lbl)
 	status_box.add_child(_money_lbl)
 
-	# Bottom Center Weapon & Ammo
+	# Bottom Center Weapon Slots + Ammo
+	var slot_bar := HBoxContainer.new()
+	slot_bar.anchor_left = 0.5
+	slot_bar.anchor_right = 0.5
+	slot_bar.anchor_top = 1.0
+	slot_bar.anchor_bottom = 1.0
+	slot_bar.offset_left = -165
+	slot_bar.offset_right = 165
+	slot_bar.offset_top = -100
+	slot_bar.offset_bottom = -62
+	slot_bar.alignment = BoxContainer.ALIGNMENT_CENTER
+	slot_bar.add_theme_constant_override("separation", 6)
+	_hud_root.add_child(slot_bar)
+
+	_slot1_btn = _make_slot_btn("RIFLE", _on_slot1_pressed)
+	_slot2_btn = _make_slot_btn("PISTOL", _on_slot2_pressed)
+	_slot3_btn = _make_slot_btn("KNIFE", _on_slot3_pressed)
+	_slot4_btn = _make_slot_btn("FRAG", _on_slot4_pressed)
+	slot_bar.add_child(_slot1_btn)
+	slot_bar.add_child(_slot2_btn)
+	slot_bar.add_child(_slot3_btn)
+	slot_bar.add_child(_slot4_btn)
+
 	var ammo_box := HBoxContainer.new()
 	ammo_box.anchor_left = 0.5
 	ammo_box.anchor_right = 0.5
@@ -155,16 +202,16 @@ func _build_hud() -> void:
 	ammo_box.add_child(_weapon_lbl)
 	ammo_box.add_child(_ammo_lbl)
 
-	# Top Left Utility Buttons (Menu + Buy)
-	_pause_btn = _make_touch_btn("MENU", Vector2(18, 162), Vector2(84, 42))
-	_pause_btn.anchor_left = 0.0
-	_pause_btn.anchor_top = 0.0
+	# Top Left Utility Buttons (Menu + Score + Buy)
+	_pause_btn = _make_touch_btn("MENU", Vector2(18, 162), Vector2(68, 40))
 	_pause_btn.pressed.connect(_toggle_pause)
 	_hud_root.add_child(_pause_btn)
 
-	_buy_btn = _make_touch_btn("BUY", Vector2(110, 162), Vector2(84, 42))
-	_buy_btn.anchor_left = 0.0
-	_buy_btn.anchor_top = 0.0
+	_score_btn = _make_touch_btn("SCORE", Vector2(92, 162), Vector2(72, 40))
+	_score_btn.pressed.connect(_toggle_score)
+	_hud_root.add_child(_score_btn)
+
+	_buy_btn = _make_touch_btn("BUY", Vector2(170, 162), Vector2(68, 40))
 	_buy_btn.pressed.connect(_toggle_buy_menu)
 	_hud_root.add_child(_buy_btn)
 
@@ -219,8 +266,8 @@ func _build_hud() -> void:
 	_action_btn = Button.new()
 	_action_btn.anchor_left = 0.5
 	_action_btn.anchor_right = 0.5
-	_action_btn.anchor_top = 0.65
-	_action_btn.anchor_bottom = 0.65
+	_action_btn.anchor_top = 0.62
+	_action_btn.anchor_bottom = 0.62
 	_action_btn.offset_left = -135
 	_action_btn.offset_right = 135
 	_action_btn.offset_top = 0
@@ -234,8 +281,8 @@ func _build_hud() -> void:
 	_action_bar = ProgressBar.new()
 	_action_bar.anchor_left = 0.5
 	_action_bar.anchor_right = 0.5
-	_action_bar.anchor_top = 0.65
-	_action_bar.anchor_bottom = 0.65
+	_action_bar.anchor_top = 0.62
+	_action_bar.anchor_bottom = 0.62
 	_action_bar.offset_left = -135
 	_action_bar.offset_right = 135
 	_action_bar.offset_top = 56
@@ -249,10 +296,10 @@ func _build_hud() -> void:
 	_announce_box = PanelContainer.new()
 	_announce_box.anchor_left = 0.5
 	_announce_box.anchor_right = 0.5
-	_announce_box.offset_left = -210
-	_announce_box.offset_right = 210
-	_announce_box.offset_top = 80
-	_announce_box.offset_bottom = 148
+	_announce_box.offset_left = -220
+	_announce_box.offset_right = 220
+	_announce_box.offset_top = 74
+	_announce_box.offset_bottom = 140
 	_announce_box.visible = false
 	_announce_box.mouse_filter = Control.MOUSE_FILTER_IGNORE
 	_hud_root.add_child(_announce_box)
@@ -271,7 +318,16 @@ func _build_hud() -> void:
 
 	_build_buy_panel()
 	_build_pause_panel()
+	_build_score_panel()
 	_build_match_over_panel()
+
+func _make_slot_btn(txt: String, cb: Callable) -> Button:
+	var b := Button.new()
+	b.text = txt
+	b.custom_minimum_size = Vector2(74, 34)
+	b.focus_mode = Control.FOCUS_NONE
+	b.pressed.connect(cb)
+	return b
 
 func _build_buy_panel() -> void:
 	_buy_panel = PanelContainer.new()
@@ -281,17 +337,17 @@ func _build_buy_panel() -> void:
 	_buy_panel.anchor_bottom = 0.5
 	_buy_panel.offset_left = -260
 	_buy_panel.offset_right = 260
-	_buy_panel.offset_top = -180
-	_buy_panel.offset_bottom = 180
+	_buy_panel.offset_top = -205
+	_buy_panel.offset_bottom = 205
 	_buy_panel.visible = false
 	_hud_root.add_child(_buy_panel)
 
 	var vbox := VBoxContainer.new()
-	vbox.add_theme_constant_override("separation", 10)
+	vbox.add_theme_constant_override("separation", 8)
 	_buy_panel.add_child(vbox)
 
 	var title := Label.new()
-	title.text = "TACTICAL BUY MENU"
+	title.text = "TACTICAL ARMORY"
 	title.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
 	title.add_theme_font_size_override("font_size", 20)
 	vbox.add_child(title)
@@ -300,21 +356,55 @@ func _build_buy_panel() -> void:
 	_add_buy_row(vbox, "M4A1-Carbine ($2900)", _on_buy_m4)
 	_add_buy_row(vbox, "MP5-SD SMG ($1500)", _on_buy_mp5)
 	_add_buy_row(vbox, "USP-Tactical Pistol ($200)", _on_buy_usp)
+	_add_buy_row(vbox, "HE Frag Grenade ($300)", _on_buy_grenade)
 	_add_buy_row(vbox, "Kevlar Vest Armor ($650)", _on_buy_armor)
 	_add_buy_row(vbox, "Defuse Kit - CT Only ($400)", _on_buy_kit)
 
 	var close_b := Button.new()
 	close_b.text = "CLOSE"
-	close_b.custom_minimum_size = Vector2(0, 42)
+	close_b.custom_minimum_size = Vector2(0, 40)
 	close_b.pressed.connect(_on_close_buy)
 	vbox.add_child(close_b)
 
 func _add_buy_row(parent: VBoxContainer, label_txt: String, cb: Callable) -> void:
 	var b := Button.new()
 	b.text = label_txt
-	b.custom_minimum_size = Vector2(0, 42)
+	b.custom_minimum_size = Vector2(0, 38)
 	b.pressed.connect(cb)
 	parent.add_child(b)
+
+func _build_score_panel() -> void:
+	_score_panel = PanelContainer.new()
+	_score_panel.anchor_left = 0.5
+	_score_panel.anchor_right = 0.5
+	_score_panel.anchor_top = 0.5
+	_score_panel.anchor_bottom = 0.5
+	_score_panel.offset_left = -220
+	_score_panel.offset_right = 220
+	_score_panel.offset_top = -175
+	_score_panel.offset_bottom = 175
+	_score_panel.visible = false
+	_hud_root.add_child(_score_panel)
+
+	var vbox := VBoxContainer.new()
+	vbox.add_theme_constant_override("separation", 10)
+	_score_panel.add_child(vbox)
+
+	var title := Label.new()
+	title.text = "5v5 MATCH SCOREBOARD"
+	title.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
+	title.add_theme_font_size_override("font_size", 19)
+	vbox.add_child(title)
+
+	_score_text = Label.new()
+	_score_text.add_theme_font_size_override("font_size", 14)
+	vbox.add_child(_score_text)
+
+	var close_b := Button.new()
+	close_b.text = "CLOSE"
+	close_b.custom_minimum_size = Vector2(0, 38)
+	close_b.pressed.connect(_on_close_score)
+	vbox.add_child(close_b)
 
 func _build_pause_panel() -> void:
 	_pause_panel = PanelContainer.new()
@@ -398,6 +488,22 @@ func _build_match_over_panel() -> void:
 	menu_b.pressed.connect(_on_menu_pressed)
 	vbox.add_child(menu_b)
 
+func _on_slot1_pressed() -> void:
+	if _player != null:
+		_player.equip_slot(1)
+
+func _on_slot2_pressed() -> void:
+	if _player != null:
+		_player.equip_slot(2)
+
+func _on_slot3_pressed() -> void:
+	if _player != null:
+		_player.equip_slot(3)
+
+func _on_slot4_pressed() -> void:
+	if _player != null:
+		_player.equip_slot(4)
+
 func _on_ads_pressed() -> void:
 	if _player != null:
 		_player.toggle_ads()
@@ -438,6 +544,9 @@ func _on_buy_mp5() -> void:
 func _on_buy_usp() -> void:
 	GameManager.try_buy_weapon(WeaponData.WeaponId.USP_PISTOL)
 
+func _on_buy_grenade() -> void:
+	GameManager.try_buy_weapon(WeaponData.WeaponId.HE_GRENADE)
+
 func _on_buy_armor() -> void:
 	GameManager.try_buy_armor()
 
@@ -446,6 +555,9 @@ func _on_buy_kit() -> void:
 
 func _on_close_buy() -> void:
 	_buy_panel.visible = false
+
+func _on_close_score() -> void:
+	_score_panel.visible = false
 
 func _on_sens_changed(v: float) -> void:
 	GameManager.touch_sensitivity = v
@@ -505,7 +617,7 @@ func _to_canvas_pos(screen_pos: Vector2) -> Vector2:
 	return _hud_root.get_global_transform_with_canvas().affine_inverse() * screen_pos
 
 func _input(event: InputEvent) -> void:
-	if _buy_panel.visible or _pause_panel.visible or _match_over_panel.visible or _player == null:
+	if _buy_panel.visible or _pause_panel.visible or _score_panel.visible or _match_over_panel.visible or _player == null:
 		return
 
 	if event is InputEventScreenTouch:
@@ -515,7 +627,7 @@ func _input(event: InputEvent) -> void:
 				_fire_finger = event.index
 				_player.set_fire_pressed(true)
 				return
-			var btns := [_ads_btn, _jump_btn, _crouch_btn, _reload_btn, _swap_btn, _buy_btn, _pause_btn, _action_btn]
+			var btns := [_ads_btn, _jump_btn, _crouch_btn, _reload_btn, _swap_btn, _buy_btn, _pause_btn, _score_btn, _slot1_btn, _slot2_btn, _slot3_btn, _slot4_btn, _action_btn]
 			for btn in btns:
 				if btn.visible and btn.get_global_rect().has_point(pos):
 					return
@@ -551,6 +663,10 @@ func _input(event: InputEvent) -> void:
 func _process(delta: float) -> void:
 	if _hitmarker_timer > 0.0:
 		_hitmarker_timer -= delta
+		if _hitmarker_timer <= 0.0:
+			_hit_dmg_lbl.visible = false
+	if _damage_flash_timer > 0.0:
+		_damage_flash_timer -= delta
 	if _announce_timer > 0.0:
 		_announce_timer -= delta
 		if _announce_timer <= 0.0:
@@ -558,6 +674,9 @@ func _process(delta: float) -> void:
 	_buy_btn.visible = GameManager.can_buy()
 	if not GameManager.can_buy() and _buy_panel.visible:
 		_buy_panel.visible = false
+	if _player != null:
+		_slot1_btn.visible = _player.has_slot(1)
+		_slot4_btn.visible = _player.has_slot(4)
 	_draw_layer.queue_redraw()
 
 func _toggle_buy_menu() -> void:
@@ -566,6 +685,26 @@ func _toggle_buy_menu() -> void:
 
 func _toggle_pause() -> void:
 	_pause_panel.visible = not _pause_panel.visible
+
+func _toggle_score() -> void:
+	_score_panel.visible = not _score_panel.visible
+	if _score_panel.visible:
+		_refresh_scoreboard()
+
+func _refresh_scoreboard() -> void:
+	var lines: Array = []
+	lines.append("CT SIDE (%d):" % GameManager.ct_score)
+	for ag_name in GameManager.scoreboard.keys():
+		var row: Dictionary = GameManager.scoreboard[ag_name]
+		if row["team"] == GameManager.Team.CT:
+			lines.append("  %-12s  K: %d   D: %d" % [ag_name, row["kills"], row["deaths"]])
+	lines.append("")
+	lines.append("T SIDE (%d):" % GameManager.t_score)
+	for ag_name in GameManager.scoreboard.keys():
+		var row: Dictionary = GameManager.scoreboard[ag_name]
+		if row["team"] == GameManager.Team.T:
+			lines.append("  %-12s  K: %d   D: %d" % [ag_name, row["kills"], row["deaths"]])
+	_score_text.text = "\n".join(lines)
 
 func _on_score_changed(ct: int, t: int, _r: int) -> void:
 	_top_score_lbl.text = "%d : %d" % [ct, t]
@@ -586,14 +725,24 @@ func _on_weapon_changed(w_name: String, mag: int, reserve: int, slot: int, reloa
 	_weapon_lbl.text = w_name
 	if slot == 3:
 		_ammo_lbl.text = "MELEE"
+	elif slot == 4:
+		_ammo_lbl.text = "THROW"
 	elif reloading:
 		_ammo_lbl.text = "RELOAD"
 	else:
 		_ammo_lbl.text = "%d / %d" % [mag, reserve]
 
-func _on_hitmarker(is_head: bool, _killed: bool) -> void:
-	_hitmarker_timer = 0.14
+func _on_hitmarker(is_head: bool, killed: bool, dmg: int) -> void:
+	_hitmarker_timer = 0.22
 	_hitmarker_head = is_head
+	_hit_dmg_lbl.visible = true
+	_hit_dmg_lbl.text = ("HS -%d!" % dmg) if is_head else ("-%d" % dmg)
+	if killed:
+		_hit_dmg_lbl.text += " KILL"
+	_hit_dmg_lbl.modulate = Color(1.0, 0.28, 0.22) if is_head else Color(1.0, 0.92, 0.45)
+
+func _on_damage_taken() -> void:
+	_damage_flash_timer = 0.25
 
 func _on_action_prompt(vis: bool, label: String, progress: float) -> void:
 	_action_btn.visible = vis
